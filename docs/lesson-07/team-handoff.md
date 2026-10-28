@@ -1,6 +1,6 @@
 # 第7课团队交接
 
-正式交付根目录：`E:\campus-claw`。个人旧项目`E:\CampusClaw`不得修改。现有build_spec_pack.py和子目录phase-a保留作历史草稿，不再运行全量生成。当前仅文档交付，无业务代码、无已运行骨架、无Git写操作。
+所有文件路径均相对于小组仓库根目录 `./`；组员独立clone后从根目录执行命令，不依赖组长电脑或旧个人项目文件。当前交付状态为规范文档，骨架实现及工程验证仍待执行。
 
 ## 1. 阅读顺序与三人分工
 
@@ -21,7 +21,7 @@
 
 ## 3. OpenSpec真实工具核对
 
-本机已检查PATH，未发现`openspec`命令；strict为**NOT_RUN**。本轮不自动安装CLI，不把静态格式审查当作strict。
+本机已检查PATH，未发现`openspec`命令；strict为**NOT_RUN**。请在开发环境准备CLI，不把静态格式审查当作strict。
 
 在组员安装的工具环境先执行并保留输出：
 
@@ -42,7 +42,7 @@ openspec validate 2026-10-28-project-skeleton --strict
 
 课程要求保留四步语义：`/opsx-propose`→`/opsx-validate ... --strict`→`/opsx-apply`→`/opsx-archive`。当前官方说明的命名因Harness而异，Codex可能使用`$openspec-propose`；以init生成入口为准。代理verify不自动等于CLI strict。课件validate入口不存在时，记录命令差异、执行真实CLI严格校验，并让组长确认课程对应关系。见[OpenSpec官方仓库说明](https://github.com/Fission-AI/OpenSpec)。
 
-归档和tag只有真实验收完成后才做，且由组长按授权操作；本轮不执行。不要为勾完tasks提前归档。
+归档和tag只有真实验收完成后才做，且由组长按授权操作。不要为勾完tasks提前归档。
 
 ## 4. A/B统一验收入口
 
@@ -63,3 +63,8 @@ Linux/macOS使用curl。配置前先从.env.example复制到本地.env，填写d
 ## 5. 今天提交与后续缺口
 
 今天可提交的是这套P0正式文档。尚缺：三人确认及版本冻结；独立仓库/权限/保护/首次提交证据；本机或组员环境strict真实通过；A的骨架代码及部署文件；B的自动测试、跨机器启动和审查记录；规范新会话生效验证；全历史秘密扫描；最后归档和骨架tag。不能将阶段性文档提交表述为第7课最终工程验收完成。
+
+
+## 修订核对记录（2026-10-28）
+按[官方proposal模板](https://raw.githubusercontent.com/Fission-AI/OpenSpec/main/schemas/spec-driven/templates/proposal.md)修正标题层级；按[官方spec模板](https://raw.githubusercontent.com/Fission-AI/OpenSpec/main/schemas/spec-driven/templates/spec.md)补充新capability的Purpose。依据[元数据实现](https://github.com/Fission-AI/OpenSpec/blob/main/src/utils/change-metadata.ts)，元数据缺失可回退默认schema；本包显式提供.openspec.yaml固定spec-driven，不设置skip_specs，不表示CLI已初始化或验证。SK-02为六个应用必需项，Compose数据库初始化变量另计，不混入数量。
+本轮静态复查保留10条Requirement、32个Scenario，任务引用全部覆盖且无未知编号，文档本地链接有效；未新增AI业务任务。PATH仍未发现OpenSpec CLI，strict保持NOT_RUN。新增AI规范仅作用于未来变更。

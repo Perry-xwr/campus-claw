@@ -1,5 +1,9 @@
 # Skeleton
 
+## Purpose
+
+为班级答疑广场建立可独立启动、可观测、可验证的最小工程底座，统一配置失败、依赖连通、请求日志和团队验收契约，使后续业务变更能在明确的分层与运行边界内实施；本能力不包含五模块业务实现。
+
 ## ADDED Requirements
 
 下列 SHALL 为本组拟定可执行基线；技术与数值为建议默认值，待确认后冻结。
@@ -20,7 +24,7 @@
 系统 SHALL 从环境读取 APP_ENV、APP_VERSION、HTTP_PORT、MYSQL_DSN、OPS_TOKEN、RAG_MODE。必需配置缺失或非法必须先报错再退出，不打开监听端口。
 
 #### Scenario: SC-SK-02-01
-- **GIVEN** （前置条件）七个必需项合法，RAG_MODE=disabled。
+- **GIVEN** （前置条件）六个应用必需项合法，RAG_MODE=disabled。
 - **WHEN** （操作）启动应用。
 - **THEN** （可观测结果）进程开始监听；日志不含DSN/令牌；配置不写入前端。
 

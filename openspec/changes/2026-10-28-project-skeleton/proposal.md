@@ -1,3 +1,5 @@
+# Proposal
+
 ## Why
 班级答疑广场尚无独立团队工程底座。先用一个可运行、可观测、可复现的骨架验证协作流程和规范入口，降低后续五模块实现时环境和授权边界不清的风险。
 
@@ -5,9 +7,9 @@
 新增单向分层、配置验证、MySQL连通探测、公开health/ready、受令牌保护的运维诊断、错误外壳、request ID/JSON日志、最小web状态页、Docker/Compose和一键验收。严格限定 SK-01…SK-10。
 
 ## Capabilities
-## New Capabilities
+### New Capabilities
 - skeleton：最小运行和工程门禁，见specs/skeleton/spec.md。
-## Modified Capabilities
+### Modified Capabilities
 无。独立新项目，不假定旧CampusClaw服务已部署或具有兼容契约。
 
 ## Impact
