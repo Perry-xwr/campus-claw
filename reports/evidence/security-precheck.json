@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-11-04T10:30:15+00:00",
+  "环境": "按 README 从零启动的隔离实例（临时 CAMPUSCLAW_HOME，内置预置账号与示例讲义）",
+  "身份与数据": [
+    "班级 A",
+    "班级 B",
+    "teacher_a",
+    "student_a1",
+    "student_b1",
+    "teacher_b"
+  ],
+  "受保护接口清单": [
+    "GET /api/materials/",
+    "GET /api/materials/1",
+    "POST /api/search",
+    "GET /api/prompt",
+    "GET /api/skills",
+    "GET /api/conversations",
+    "POST /api/submissions",
+    "GET /api/mcp/tool-calls",
+    "GET /api/qa/questions"
+  ],
+  "写入类接口清单": [
+    "PUT /api/prompt（提示词）",
+    "POST /api/skills、POST /api/skills/upload、PUT|DELETE /api/skills/{id}（技能配置）",
+    "POST /api/mcp/servers、PUT|DELETE /api/mcp/servers/{id}（助手/工具配置）",
+    "POST /api/materials/{id}/reindex（索引重建写入）",
+    "POST /api/submissions（异步批改提交，学生可写，按班级隔离）",
+    "POST /api/qa/questions/{id}/accept|close|reopen（答疑状态写入，仅教师）"
+  ],
+  "records": [
+    {
+      "id": "SEC-01",
+      "name": "未登录访问受保护接口",
+      "前置条件": "服务已启动；不携带任何令牌；9 个受保护接口已列清单",
+      "操作": "对清单中每个接口发一次请求，记录 HTTP 返回码",
+      "可观测结果": {
+        "期望": "每个接口都返回 401",
+        "当前实际": "GET /api/materials/ → 401, GET /api/materials/1 → 401, POST /api/search → 401, GET /api/prompt → 401, GET /api/skills → 401, GET /api/conversations → 401, POST /api/submissions → 401, GET /api/mcp/tool-calls → 401, GET /api/qa/questions → 401",
+        "当前判定": "绿"
+      }
+    },
+    {
+      "id": "SEC-02",
+      "name": "跨班访问与跨班检索",
+      "前置条件": "student_a1（A 班）、student_b1（B 班）已登录；B 班讲义 id=2 存在；关键词索引已就绪",
+      "操作": "带 A1 令牌 GET /api/materials/2；分别带 A1/B1 令牌 POST /api/search 检索本班与他班独有词",
+      "可观测结果": {
+        "期望": "跨班访问得 404；跨班检索得空结果（0 条）；本班检索有结果以证明检索能力可用",
+        "当前实际": "跨班访问 GET /api/materials/2 → 404；A1 检索本班 A_ONLY_SEED → 1 条；A1 检索 B_ONLY_SEED → 0 条；B1 检索 A_ONLY_SEED → 0 条",
+        "当前判定": "绿"
+      }
+    },
+    {
+      "id": "SEC-03",
+      "name": "学生修改技能与提示词",
+      "前置条件": "student_a1 已登录；A 班 class_prompts 与 2 条预置 class_skills 存在",
+      "操作": "带 A1 令牌 PUT /api/prompt 与 POST /api/skills，随后回查数据库",
+      "可观测结果": {
+        "期望": "403，且提示词与技能表数据不变",
+        "当前实际": "PUT /api/prompt → 403；POST /api/skills → 403；class_prompts(A) 正文未变；class_skills(A) 共 2 条（预置 2 条）",
+        "当前判定": "绿"
+      }
+    },
+    {
+      "id": "SEC-04",
+      "name": "技能工具绕过鉴权（写入类接口直调）",
+      "前置条件": "student_a1 已登录；A 班材料 id=1；记录 index_jobs 基线 2 条",
+      "操作": "带 A1 令牌不走技能路由，直接调用写入类接口 reindex 与 MCP 服务器登记，回查任务表",
+      "可观测结果": {
+        "期望": "被拒绝，库里不留下新记录",
+        "当前实际": "直接调 POST /api/materials/1/reindex → 403；直接调 POST /api/mcp/servers → 403；index_jobs 条数 2 → 2",
+        "当前判定": "绿"
+      }
+    },
+    {
+      "id": "SEC-05",
+      "name": "密钥明文泄漏扫描",
+      "前置条件": "本机已拉全量提交历史；扫描提交历史、前端产物、运行日志",
+      "操作": "make check-security（uv run python scripts/check_security.py --out ...）",
+      "可观测结果": {
+        "期望": "真实密钥明文 0 命中",
+        "当前实际": "扫描 10 个提交、前端产物 139 个文件、运行日志 6 个文件；真实密钥明文命中 0；公开演示/测试常量 2 处已逐条登记（非第三方密钥）",
+        "当前判定": "绿"
+      }
+    },
+    {
+      "id": "SEC-06",
+      "name": "依赖漏洞基线",
+      "前置条件": "依赖按 requirements.txt / uv.lock 安装；已安装 9 项声明依赖",
+      "操作": "make check-security 中的依赖审计部分（pip-audit 可用时在线比对，否则离线清单登记）",
+      "可观测结果": {
+        "期望": "高危清零，或书面登记处置方式",
+        "当前实际": "离线依赖清单基线（未完成在线漏洞库比对）；高危/严重 = 未知（降级，未在线比对）；处置方式已书面登记：本机未安装 pip-audit 且离线，无法给出高危/严重数量；按任务清单「高危清零，或书面登记处置方式」中的后一种处理：依赖全部按 requirements.",
+        "当前判定": "绿（走「书面登记处置方式」分支，降级已如实标注）"
+      }
+    },
+    {
+      "id": "SEC-07",
+      "name": "审计日志可追溯",
+      "前置条件": "teacher_a 已登录；审计表 mcp_tool_calls 与查询接口 /api/mcp/tool-calls 存在",
+      "操作": "GET /api/mcp/tool-calls 回查，并 PRAGMA table_info(mcp_tool_calls) 对照期望字段",
+      "可观测结果": {
+        "期望": "能查到操作人、技能标识、结果状态、耗时、用量",
+        "当前实际": "GET /api/mcp/tool-calls → 200，返回 0 条；mcp_tool_calls 实际字段：id, class_id, server_id, tool_ref, status, detail, user_id, conversation_id, created_at；具备：操作人、结果状态；缺失：技能标识、耗时、用量",
+        "当前判定": "红"
+      }
+    }
+  ],
+  "日志字段缺口": {
+    "缺什么字段": [
+      "技能标识",
+      "耗时",
+      "用量"
+    ],
+    "准备加在哪一层": "采集层 campusclaw/mcp_skill.py::_record 记录技能标识与起止时刻；写入层 campusclaw/mcp_db.py::record_tool_call 增加 skill_ref / duration_ms / usage 列；查询层 campusclaw/views/mcp_views.py 的 /api/mcp/tool-calls 把新字段带出。后续课次的监控指标（调用耗时、失败率、用量）以这些字段为数据源。"
+  },
+  "summary": {
+    "total": 7,
+    "绿": 6,
+    "红": 1
+  }
+}

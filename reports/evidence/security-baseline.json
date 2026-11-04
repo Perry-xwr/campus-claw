@@ -1,0 +1,137 @@
+{
+  "generated_at": "2026-11-04T10:39:14+00:00",
+  "sec05": {
+    "patterns": [
+      "OpenAI 兼容 API 密钥",
+      "AWS Access Key",
+      "PEM 私钥",
+      "硬编码凭据"
+    ],
+    "placeholder_filter": "跳过 xxx / ... / example / synthetic / ${...} 等占位与合成值",
+    "commits_scanned": 10,
+    "files_scanned": {
+      "前端产物": 139,
+      "运行日志": 6
+    },
+    "hit_count": 0,
+    "hits": [],
+    "demo_constant_count": 2,
+    "demo_constants": [
+      {
+        "scope": "前端产物/运行日志",
+        "file": "docs/上手教程.md",
+        "line_no": 537,
+        "kind": "硬编码凭据",
+        "line": "`$env:MCP_AUTH_TOKEN = \"campusclaw-mcp-demo-token\"`（缺令牌会直接启动失败，退出码 2）。"
+      },
+      {
+        "scope": "前端产物/运行日志",
+        "file": "scripts/acceptance_compose.py",
+        "line_no": 71,
+        "kind": "硬编码凭据",
+        "line": "SECRET_KEY = \"campusclaw-verify-secret-key-0123456789abcdef\""
+      }
+    ],
+    "demo_disposition": "公开演示/测试固定常量（文档示例令牌、验收脚本固定 SECRET_KEY），非第三方密钥、不随仓库外发，逐条登记且不计入密钥明文命中；真实模型密钥只存于本机 .env，已 gitignore 且从未进入提交历史。",
+    "errors": [],
+    "verdict": "绿"
+  },
+  "sec06": {
+    "mode": "离线依赖清单基线（未完成在线漏洞库比对）",
+    "pip_audit_available": false,
+    "downgraded": true,
+    "declared": [
+      {
+        "name": "Flask",
+        "version": "3.1.1",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "Werkzeug",
+        "version": "3.1.8",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "bcrypt",
+        "version": "4.2.1",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "gunicorn",
+        "version": "23.0.0",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "langchain-openai",
+        "version": "1.4.1",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "langchain-text-splitters",
+        "version": "1.1.3",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "qdrant-client",
+        "version": "1.19.1",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "mcp",
+        "version": "1.30.0",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "langchain-mcp-adapters",
+        "version": "0.3.2",
+        "source": "requirements.txt"
+      },
+      {
+        "name": "uvicorn",
+        "version": "0.54.0",
+        "source": "requirements.txt"
+      }
+    ],
+    "installed": [
+      {
+        "name": "bcrypt",
+        "version": "4.2.1"
+      },
+      {
+        "name": "Flask",
+        "version": "3.1.1"
+      },
+      {
+        "name": "langchain-mcp-adapters",
+        "version": "0.3.2"
+      },
+      {
+        "name": "langchain-openai",
+        "version": "1.4.1"
+      },
+      {
+        "name": "langchain-text-splitters",
+        "version": "1.1.3"
+      },
+      {
+        "name": "mcp",
+        "version": "1.30.0"
+      },
+      {
+        "name": "qdrant-client",
+        "version": "1.19.1"
+      },
+      {
+        "name": "uvicorn",
+        "version": "0.54.0"
+      },
+      {
+        "name": "Werkzeug",
+        "version": "3.1.8"
+      }
+    ],
+    "high": null,
+    "medium": null,
+    "disposition": "本机未安装 pip-audit 且离线，无法给出高危/严重数量；按任务清单「高危清零，或书面登记处置方式」中的后一种处理：依赖全部按 requirements.txt / uv.lock 钉死版本，仅内部部署、无对外输入面；后续课次联网跑 pip-audit 后复测并更新本报告。"
+  }
+}

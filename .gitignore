@@ -69,6 +69,7 @@ dist/
 build/
 coverage/
 bin/
-reports/
+# 第 8 课：reports/ 是课程安全自查与证据的固定归档目录，最终项目报告会直接引用，必须入库。
+# 骨架仓库原本把 reports/ 当作测试输出忽略，此处移除该规则。
 *.test
 *.out
