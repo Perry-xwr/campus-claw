@@ -37,6 +37,8 @@
 
 ## 4. 技术方案与RAG复用边界
 
+后续业务集成更新：以[integration-requirements](integration-requirements.md)为准。本节独立服务/技术栈为早期建议；“旧CampusClaw”指组长个人项目，不限制组员复用自己的系统。原业务权限、状态与统计口径继续有效。
+
 推荐Go `net/http`后端、React/TypeScript前端、MySQL事实存储；这是小组建议，不是课程指定。精确工具链版本、依赖锁与镜像digest由A在开发前记录并冻结。浏览器通过同源代理访问后端；依赖方向为handler→application→domain/ports，MySQL/RAG adapter实现ports，cmd装配。
 
 旧CampusClaw只作为经验来源，**不修改、不复制其代码或数据库，不假定其部署可用**。未来RAG通过独立服务契约复用；本课 `RAG_MODE=disabled`，不部署Qdrant、不接问答。adapter以后负责授权上下文传递、超时、错误映射及引用校验；服务方必须按可信class_id隔离，而不是相信用户传入班级。引用至少含document_id、chunk_id、版本、班级及可验证来源；只返回一段文本的旧接口不能直接满足可信引用要求。
