@@ -86,7 +86,8 @@ services:
       MCP_AUTH_TOKEN: "${MCP_AUTH_TOKEN:-}"
     ports:
       # 教师登记 Base URL 时，容器网络内填 http://mcp:8090，宿主机调试用 127.0.0.1:8090。
-      - "127.0.0.1:8090:8090"
+      # 只想改宿主机端口时：设置 MCP_PORT=8091 后再 up。
+      - "127.0.0.1:${MCP_PORT:-8090}:8090"
     # 不设 depends_on：不拦 app 启动；连接失败由主机侧返回 502 可读提示。
     restart: unless-stopped
 volumes:

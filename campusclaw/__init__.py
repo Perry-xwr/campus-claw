@@ -18,6 +18,7 @@ from campusclaw import (
     qa_db,
     retrieval_db,
     storage,
+    task_db,
     timeutil,
     tutor_db,
 )
@@ -51,6 +52,8 @@ def prepare_storage_and_db(settings: Settings, env: dict[str, str] | None = None
         mcp_db.ensure_schema(conn)
         # 小组项目：班级答疑广场五张表幂等增量建表，不改既有表。
         qa_db.ensure_schema(conn)
+        # 第 8 课：异步批改任务表、幂等结果表，幂等增量建表。
+        task_db.ensure_schema(conn)
         # 为从未建立索引的材料补建关键词就绪切片，使解题助手开箱可检索本班资料。
         tutor_db.backfill_keyword_ready(conn)
         if scenario == "recovery_staging":
@@ -126,6 +129,7 @@ def create_app(
     from campusclaw.views.qa_views import bp as qa_bp
     from campusclaw.views.retrieval_views import bp as retrieval_bp
     from campusclaw.views.skill_views import bp as skill_bp
+    from campusclaw.views.task_views import bp as task_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(api_auth_bp)
@@ -138,6 +142,7 @@ def create_app(
     app.register_blueprint(conversation_bp)
     app.register_blueprint(mcp_bp)
     app.register_blueprint(qa_bp)
+    app.register_blueprint(task_bp)
     app.register_blueprint(docs_bp)
 
     register_error_handlers(app)

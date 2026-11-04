@@ -1,9 +1,10 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-  一键启动 CampusClaw 全部服务：主应用、索引 worker、MCP 工具服务、Qdrant。
+  一键启动 CampusClaw 全部服务。两种模式：本机进程（默认）或 Docker Compose（-Docker）。
 
 .DESCRIPTION
+  【本机模式（默认）】直接跑 Python 进程，改代码即生效：
   - 解释器优先级：-Python 参数 > 项目 .venv（uv sync 产物）> anaconda langdev；
   - 读取项目根目录 .env（只补齐缺失项，不覆盖当前进程已有的环境变量）；
   - 先停掉上一次由本脚本启动的进程（幂等，重复执行不会起多份）；
@@ -13,6 +14,12 @@
   - MCP 工具服务需要 MCP_AUTH_TOKEN，脚本从 .env 读入再传给子进程；
   - 每个服务的输出写到 .run/logs/<服务>.log，PID 记在 .run/pids.json；
   - 启动后做健康检查（同时确认进程还活着），并打印访问地址与停止命令。
+
+  【容器模式（-Docker）】整站交给 Docker Compose（app / worker / qdrant / mcp 四个容器）：
+  - 加 -Rebuild 会先重建镜像（改了代码或依赖时用）；
+  - 端口经 CAMPUSCLAW_PORT / MCP_PORT 传给 Compose，不写死；
+  - 容器模式下本机进程会被先清理，避免两套同时抢端口；
+  - 数据仍落在宿主机 ./data 与 ./uploads，重建容器不丢。
 
 .EXAMPLE
   pwsh -File scripts/start-all.ps1
@@ -25,6 +32,12 @@
 
 .EXAMPLE
   pwsh -File scripts/start-all.ps1 -Python "D:\conda\envs\langdev\python.exe"
+
+.EXAMPLE
+  pwsh -File scripts/start-all.ps1 -Docker              # 容器模式（用现有镜像）
+
+.EXAMPLE
+  pwsh -File scripts/start-all.ps1 -Docker -Rebuild     # 容器模式 + 重建镜像
 #>
 [CmdletBinding()]
 param(
@@ -32,7 +45,11 @@ param(
     [string]$Python = "",
     [int]$AppPort = 0,
     [int]$McpPort = 0,
-    [switch]$NoDocker
+    [switch]$NoDocker,
+    # 整站用 Docker Compose 启动（与 -NoDocker 互斥）。
+    [switch]$Docker,
+    # 配合 -Docker：启动前先 docker compose build。
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,23 +67,26 @@ $PidFile = Join-Path $RunDir "pids.json"
 # ---------------------------------------------------------------- 解释器探测
 # 顺序：显式 -Python 参数 > 项目 .venv（uv sync 产物）> anaconda langdev。
 # .venv 存在时说明本项目用 uv 管理依赖，此时不应再落到 conda 环境（两处依赖会漂移）。
+# 容器模式（-Docker）不跑本机进程，无需探测解释器。
 $LangdevFallback = "E:\codetools\anaconda3\envs\langdev\python.exe"
-if ([string]::IsNullOrWhiteSpace($Python)) {
-    $venvPython = Join-Path $Root ".venv\Scripts\python.exe"
-    if (Test-Path $venvPython) {
-        $Python = $venvPython
-        Write-Host "[环境] 使用项目 .venv（uv）：$Python" -ForegroundColor DarkGray
-    } else {
-        $Python = $LangdevFallback
-        Write-Host "[环境] 未找到 .venv，回落到 anaconda langdev：$Python" -ForegroundColor DarkGray
-        Write-Host "       想改用 uv 管理：uv sync（详见 README「环境与依赖：用 uv 管理」）。" -ForegroundColor DarkGray
+if (-not $Docker) {
+    if ([string]::IsNullOrWhiteSpace($Python)) {
+        $venvPython = Join-Path $Root ".venv\Scripts\python.exe"
+        if (Test-Path $venvPython) {
+            $Python = $venvPython
+            Write-Host "[环境] 使用项目 .venv（uv）：$Python" -ForegroundColor DarkGray
+        } else {
+            $Python = $LangdevFallback
+            Write-Host "[环境] 未找到 .venv，回落到 anaconda langdev：$Python" -ForegroundColor DarkGray
+            Write-Host "       想改用 uv 管理：uv sync（详见 README「环境与依赖：用 uv 管理」）。" -ForegroundColor DarkGray
+        }
     }
-}
 
-if (-not (Test-Path $Python)) {
-    Write-Host "[错误] 找不到 Python：$Python" -ForegroundColor Red
-    Write-Host "       用 -Python <路径> 指定解释器，或先执行 uv sync 生成 .venv。" -ForegroundColor DarkGray
-    exit 2
+    if (-not (Test-Path $Python)) {
+        Write-Host "[错误] 找不到 Python：$Python" -ForegroundColor Red
+        Write-Host "       用 -Python <路径> 指定解释器，或先执行 uv sync 生成 .venv。" -ForegroundColor DarkGray
+        exit 2
+    }
 }
 
 # ---------------------------------------------------------------- 工具函数
@@ -217,6 +237,76 @@ if ([string]::IsNullOrWhiteSpace($mcpToken)) {
     Write-Host "       在项目根 .env 里加一行 MCP_AUTH_TOKEN=<你的令牌> 后重试。" -ForegroundColor DarkGray
 }
 
+# ---------------------------------------------------------------- Docker 模式
+# 整站交给 Compose：app / worker / qdrant / mcp 四个容器。数据仍挂宿主机目录。
+if ($Docker) {
+    if ($NoDocker) {
+        Write-Host "[错误] -Docker 与 -NoDocker 不能同时使用。" -ForegroundColor Red
+        exit 2
+    }
+    if (-not (Test-Docker)) {
+        Write-Host "[错误] Docker 未运行：请先启动 Docker Desktop，或用不带 -Docker 的本机模式。" -ForegroundColor Red
+        exit 2
+    }
+
+    # 端口经环境变量传给 Compose（compose 里写的是 ${CAMPUSCLAW_PORT} / ${MCP_PORT}）。
+    $env:CAMPUSCLAW_PORT = "$AppPort"
+    $env:MCP_PORT = "$McpPort"
+
+    if ($Rebuild) {
+        Write-Host "重建镜像（docker compose build）……改动依赖时会比较久。" -ForegroundColor Cyan
+        docker compose build
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[错误] 镜像构建失败，见上方输出。" -ForegroundColor Red
+            exit 1
+        }
+    }
+
+    Write-Host "启动容器（app / worker / qdrant / mcp）……" -ForegroundColor Cyan
+    $upOutput = docker compose up -d 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $upOutput | Select-Object -Last 10 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        Write-Host "[错误] docker compose up 失败。常见原因：端口被占用、镜像缺失（加 -Rebuild 重建）。" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "等待主应用就绪……" -ForegroundColor Cyan
+    $deadline = (Get-Date).AddSeconds(120)
+    $healthy = $false
+    while ((Get-Date) -lt $deadline) {
+        if (Test-HttpOk -Url "http://127.0.0.1:$AppPort/health") { $healthy = $true; break }
+        Start-Sleep -Milliseconds 600
+    }
+    $mcpOk = Test-HttpOk -Url "http://127.0.0.1:$McpPort/health"
+
+    Write-Host ""
+    if (-not $healthy) {
+        Write-Host "[失败] 主应用 120 秒内未就绪。" -ForegroundColor Red
+        Write-Host "       看日志：docker compose logs --tail 30 app" -ForegroundColor DarkGray
+        exit 1
+    }
+
+    $mcpLine = if ($mcpOk) { "  MCP 健康    http://127.0.0.1:$McpPort/health" }
+               else { "  MCP 健康    未就绪（看 docker compose logs mcp）" }
+    Write-Host @"
+全部就绪（Docker Compose）
+  登录页      http://127.0.0.1:$AppPort/login
+  答疑广场    http://127.0.0.1:$AppPort/qa
+  班级 FAQ    http://127.0.0.1:$AppPort/qa/faq
+  答疑统计    http://127.0.0.1:$AppPort/qa/stats（仅教师）
+  解题助手    http://127.0.0.1:$AppPort/tutor
+  MCP 管理    http://127.0.0.1:$AppPort/mcp
+  Swagger     http://127.0.0.1:$AppPort/swagger/index.html
+$mcpLine
+  Qdrant      http://127.0.0.1:6333/dashboard
+
+容器状态    docker compose ps
+日志        docker compose logs -f app
+停止全部    pwsh -File scripts/stop-all.ps1
+"@ -ForegroundColor Green
+    exit 0
+}
+
 Write-Host ""
 Write-Host @"
 CampusClaw 一键启动
@@ -229,6 +319,24 @@ Write-Host ""
 
 $pids = [ordered]@{ python = $Python; started_at = (Get-Date).ToString("s") }
 $failed = $false
+
+# 本机模式与容器模式抢同一组端口：先把容器模式的 app / worker / mcp 停掉，
+# Qdrant 继续复用（本机模式本来就依赖它）。想整站都用容器请改用 -Docker。
+if (Test-Docker) {
+    $composeRunning = @(docker compose ps --services --filter "status=running" 2>$null)
+    $composeOk = ($LASTEXITCODE -eq 0)
+    $conflicts = @($composeRunning | Where-Object { $_ -and $_.Trim() -ne "" -and $_.Trim() -ne "qdrant" } |
+            ForEach-Object { $_.Trim() })
+    if ($composeOk -and $conflicts.Count -gt 0) {
+        Write-Host ("[提示] 检测到容器模式在运行：{0}" -f ($conflicts -join "、")) -ForegroundColor Yellow
+        Write-Host "       本机模式需要这些端口，先停掉对应容器（Qdrant 继续复用）。" -ForegroundColor DarkGray
+        $null = docker compose stop $conflicts 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "       停止容器未成功，端口可能仍被占用。" -ForegroundColor Yellow
+        }
+        Write-Host ""
+    }
+}
 
 # ---------------------------------------------------------------- 2. Qdrant（可选）
 $qdrantReady = $false
@@ -335,6 +443,9 @@ if (-not $failed) {
     Write-Host @"
 全部就绪
   登录页      http://127.0.0.1:$AppPort/login
+  答疑广场    http://127.0.0.1:$AppPort/qa
+  班级 FAQ    http://127.0.0.1:$AppPort/qa/faq
+  答疑统计    http://127.0.0.1:$AppPort/qa/stats（仅教师）
   解题助手    http://127.0.0.1:$AppPort/tutor
   MCP 管理    http://127.0.0.1:$AppPort/mcp
   Swagger     http://127.0.0.1:$AppPort/swagger/index.html
