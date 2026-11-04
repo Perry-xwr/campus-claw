@@ -15,3 +15,8 @@
 - [骨架任务](openspec/changes/2026-10-28-project-skeleton/tasks.md)
 
 工程启动和测试命令将在骨架实现并实际验证后补充。
+
+## 后续业务规范入口
+
+未来五模块开发必须阅读[详细需求](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[验收场景及追溯](docs/requirements/acceptance-scenarios.md)、[现有系统集成要求](docs/requirements/integration-requirements.md)。
+组员优先复用自己的现有系统，具体技术栈/API/表结构由开发者确定并登记；后续集成方式以integration-requirements为准，早期独立部署建议不强制沿用。骨架OpenSpec仍仅适用于骨架，五模块通过后续独立功能变更实施。本轮文档补充不代表业务开发完成。组长旧个人项目不在修改范围。

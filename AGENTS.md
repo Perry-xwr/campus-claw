@@ -1,6 +1,6 @@
 # 班级答疑广场：仓库规则
 
-按组长授权及当前OpenSpec变更范围开发；`2026-10-28-project-skeleton` 只允许最小骨架，不实现五模块业务。
+按组长授权及当前OpenSpec变更范围开发；骨架限制仅在执行该骨架change时生效，后续已授权功能change可实施五模块；`2026-10-28-project-skeleton` 只允许最小骨架，不实现五模块业务。
 
 ## 必须读取的入口
 
@@ -24,3 +24,9 @@
 上面的路径作用域是要求代理主动读取的规则索引，不是虚构的glob自动加载功能。新会话需在本目录/未来仓库根启动，核对是否有上层或同层AGENTS.override.md覆盖，并做真实规则生效实验。
 
 - AI/RAG、Prompt及FAQ相关变更：读取 [AI应用规范](docs/standards/ai.md)；仅在未来对应变更生效，不扩大当前骨架任务。
+
+
+## 后续业务规范入口
+
+未来五模块开发必须阅读[详细需求](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[验收场景及追溯](docs/requirements/acceptance-scenarios.md)、[现有系统集成要求](docs/requirements/integration-requirements.md)。
+组员优先复用自己的现有系统，具体技术栈/API/表结构由开发者确定并登记；后续集成方式以integration-requirements为准，早期独立部署建议不强制沿用。骨架OpenSpec仍仅适用于骨架，五模块通过后续独立功能变更实施。本轮文档补充不代表业务开发完成。组长旧个人项目不在修改范围。
