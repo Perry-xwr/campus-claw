@@ -1,8 +1,8 @@
 # 班级答疑广场
 
-独立小组项目。当前仓库处于规范文档交付阶段，尚无可运行的服务或业务模块实现。
+独立小组项目。仓库包含规范文档与一份可运行的个人实现（CampusClaw，作为答疑广场的业务底座），启动与使用说明见 [实现说明](docs/IMPLEMENTATION.md)。
 
-本次第 7 课范围是 `2026-10-28-project-skeleton` 的最小骨架规划；OpenSpec strict 校验、软件实现和工程验收仍待执行，不应将本文档包视为已验收软件。
+本次第 7 课范围是 `2026-10-28-project-skeleton` 的最小骨架规划；OpenSpec strict 校验、软件实现和工程验收仍待执行，不应将**规范文档**视为已验收软件。
 
 ## 文档入口
 
@@ -14,7 +14,7 @@
 - [骨架规格](openspec/changes/2026-10-28-project-skeleton/specs/skeleton/spec.md)
 - [骨架任务](openspec/changes/2026-10-28-project-skeleton/tasks.md)
 
-工程启动和测试命令将在骨架实现并实际验证后补充。
+工程启动和测试命令见 [实现说明](docs/IMPLEMENTATION.md)（`uv sync` → `uv run python app.py`）。
 
 ## 后续业务规范入口
 

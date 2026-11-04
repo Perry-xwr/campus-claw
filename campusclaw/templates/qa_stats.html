@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}答疑统计 · CampusClaw{% endblock %}
+{% block body %}
+{% set total = stats.total or 1 %}
+{% set status_label = {'OPEN':'待回复','ANSWERED':'已回复','ACCEPTED':'已采纳','CLOSED':'已关闭'} %}
+<div class="app">
+  <header class="appbar"><div class="appbar-inner">
+    <a class="logo" href="{{ url_for('pages.materials_page') }}"><span class="logo-mark">🎓</span><span class="logo-text"><strong>CampusClaw</strong><small>智能教学平台</small></span></a>
+    <nav class="tabs">
+      <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+      <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+      <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+      <a class="tab" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+      <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+      {% if user.role == 'teacher' %}
+      <a class="tab tab-active" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+      <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+      {% endif %}
+    </nav>
+    <div class="userbox"><span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+      <span class="badge badge-brand">教师</span>
+      <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="logout">退出</button></form>
+    </div>
+  </div></header>
+
+  <section class="banner"><div class="banner-inner">
+    <div><h1>答疑统计</h1><p>{{ user.class_name }} 班的答疑进展。已解决按「是否采纳过有效回答」统计，关闭问题不会丢失解决记录。</p></div>
+    <div class="stat-strip">
+      <div class="stat"><b>{{ stats.total }}</b><span>问题总数</span></div>
+      <div class="stat"><b>{{ stats.faq_total }}</b><span>已发布 FAQ</span></div>
+      <div class="stat"><b>{{ stats.handoff_pending }}</b><span>待处理转人工</span></div>
+    </div>
+  </div></section>
+
+  <main class="shell"><div class="stack">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+      <section class="card"><div class="card-body">
+        <div class="row-meta">待解决（OPEN + ANSWERED）</div>
+        <div style="font-size:30px;font-weight:800;color:var(--warn);line-height:1.3">{{ stats.pending }}</div>
+        <div class="row-meta">其中已转人工 {{ stats.handoff_pending }} 条</div>
+      </div></section>
+      <section class="card"><div class="card-body">
+        <div class="row-meta">已解决（已采纳有效回答）</div>
+        <div style="font-size:30px;font-weight:800;color:var(--ok);line-height:1.3">{{ stats.resolved }}</div>
+        <div class="row-meta">关闭后仍保留在此项</div>
+      </div></section>
+      <section class="card"><div class="card-body">
+        <div class="row-meta">已关闭未采纳</div>
+        <div style="font-size:30px;font-weight:800;color:var(--text-2);line-height:1.3">{{ stats.closed_unresolved }}</div>
+        <div class="row-meta">无需继续讨论但未采纳</div>
+      </div></section>
+      <section class="card"><div class="card-body">
+        <div class="row-meta">问题总数</div>
+        <div style="font-size:30px;font-weight:800;color:var(--brand);line-height:1.3">{{ stats.total }}</div>
+        <div class="row-meta">三项之和恒等于此数</div>
+      </div></section>
+    </div>
+
+    <section class="card">
+      <div class="card-head"><div class="card-title">解决情况构成</div><span class="badge badge-info">纯 CSS 条形图</span></div>
+      <div class="card-body">
+        {% for label, value, color in [('待解决', stats.pending, 'var(--warn)'), ('已解决', stats.resolved, 'var(--ok)'), ('已关闭未采纳', stats.closed_unresolved, 'var(--text-3)')] %}
+        <div style="margin-bottom:14px">
+          <div class="row-meta" style="display:flex;justify-content:space-between">
+            <span>{{ label }}</span><span>{{ value }} / {{ stats.total }}</span>
+          </div>
+          <div style="height:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;overflow:hidden;margin-top:6px">
+            <div style="height:100%;width:{{ (value * 100 / total)|round(1) }}%;background:{{ color }}"></div>
+          </div>
+        </div>
+        {% endfor %}
+        <p class="row-meta">待解决 + 已解决 + 已关闭未采纳 = {{ stats.pending + stats.resolved + stats.closed_unresolved }}，问题总数 = {{ stats.total }}。</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div class="card-title">热门问题</div><span class="badge badge-accent">按人工回复数排序</span></div>
+      <div class="card-body">
+        {% if stats.top_questions %}
+        <div class="row-list">
+          {% for item in stats.top_questions %}
+          <div class="list-row">
+            <div class="grow">
+              <div class="row-title"><a href="{{ url_for('qa.qa_detail_page', question_id=item.id) }}">{{ item.title }}</a></div>
+              <div class="row-meta">状态 {{ status_label.get(item.status, item.status) }}</div>
+            </div>
+            <span class="badge badge-brand">{{ item.reply_count }} 条回复</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty"><span class="empty-ic">📈</span>还没有产生讨论的问题。</div>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if stats.trend %}
+    <section class="card">
+      <div class="card-head"><div class="card-title">最近问题趋势</div><span class="badge badge-neutral">按日新增</span></div>
+      <div class="card-body">
+        <div style="display:flex;align-items:flex-end;gap:12px;height:140px">
+          {% set peak = (stats.trend|map(attribute='count')|max) or 1 %}
+          {% for point in stats.trend %}
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div class="row-meta">{{ point.count }}</div>
+            <div style="width:100%;max-width:48px;height:{{ (point.count * 90 / peak)|round(0) }}px;background:var(--brand-500);border-radius:4px 4px 0 0"></div>
+            <div class="row-meta">{{ point.day[5:] }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+  </div></main>
+</div>
+{% endblock %}

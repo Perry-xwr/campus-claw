@@ -1,19 +1,74 @@
-# Local environment secrets
+# ---------------------------------------------------------------------------
+# 运行时产物与敏感配置：不入库
+# ---------------------------------------------------------------------------
 .env
 .env.*
 !.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.test_tmp/
 
-# Dependencies and build output
+# 持久化数据：保留在宿主机，不入库
+data/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# ---------------------------------------------------------------------------
+# 本机 / 工具链杂项
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# 编辑器与智能体工具的工作目录
+.codebuddy/
+.claude/
+.workbuddy/
+
+# 本地排障过程中的临时探针文件
+docs/_*
+docs/screenshots/_*
+
+# 接口测试报告（本地产物，不入库；用例代码本身入库）
+apitest/report.html
+apitest/report.json
+
+# 截图工具路径转义异常产生的文件（文件名本身是 Windows 绝对路径，分隔符被剥离）
+Users*Desktop*
+
+# 一键启动脚本的运行时产物（PID 与日志）
+.run/
+
+# StudyFlow 文档的构建产物（PPT/HTML 生成的中间文件，不入库）
+docs/studyflow/.build/
+docs/studyflow/.html-build/
+docs/studyflow/.redesign/
 node_modules/
+
+# 本地调试脚本与临时基线（一次性排查用，不入库）
+tmp/
+
+# 课程提交材料与报告生成物（由 scripts/build_*.py 产出，不入库）
+output/
+
+# 骨架仓库既有规则：依赖与构建产物、测试输出
 dist/
 build/
 coverage/
 bin/
-
-# Local test and runtime data
 reports/
 *.test
 *.out
-*.db
-*.sqlite
-*.sqlite3

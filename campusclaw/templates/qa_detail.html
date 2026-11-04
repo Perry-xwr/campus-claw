@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block title %}{{ question.title }} · 答疑广场{% endblock %}
+{% block body %}
+{% set status_label = {'OPEN':'待回复','ANSWERED':'已回复','ACCEPTED':'已采纳','CLOSED':'已关闭'} %}
+{% set status_badge = {'OPEN':'badge-warn','ANSWERED':'badge-info','ACCEPTED':'badge-ok','CLOSED':'badge-neutral'} %}
+<div class="app">
+  <header class="appbar"><div class="appbar-inner">
+    <a class="logo" href="{{ url_for('pages.materials_page') }}"><span class="logo-mark">🎓</span><span class="logo-text"><strong>CampusClaw</strong><small>智能教学平台</small></span></a>
+    <nav class="tabs">
+      <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+      <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+      <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+      <a class="tab tab-active" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+      <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+      {% if user.role == 'teacher' %}
+      <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+      <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+      {% endif %}
+    </nav>
+    <div class="userbox"><span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+      <span class="badge badge-brand">{{ '教师' if user.role == 'teacher' else '学生' }}</span>
+      <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="logout">退出</button></form>
+    </div>
+  </div></header>
+
+  <section class="banner"><div class="banner-inner">
+    <div>
+      <p style="margin:0 0 6px"><a href="{{ url_for('qa.qa_list_page') }}">← 返回答疑广场</a></p>
+      <h1>{{ question.title }}</h1>
+      <p>{{ question.author_name }} 发布于 {{ question.created_at|localtime }}{% if question.handoff %} · 已转人工{% endif %}</p>
+    </div>
+    <div class="stat-strip">
+      <div class="stat"><b>{{ status_label.get(question.status, question.status) }}</b><span>当前状态</span></div>
+      <div class="stat"><b>{{ replies|length }}</b><span>人工回复</span></div>
+      <div class="stat"><b>{{ '是' if question.resolved else '否' }}</b><span>已采纳</span></div>
+    </div>
+  </div></section>
+
+  <main class="shell"><div class="stack">
+    <section class="card">
+      <div class="card-head"><div class="card-title">问题描述</div>
+        <span class="badge {{ status_badge.get(question.status, 'badge-neutral') }}">{{ status_label.get(question.status, question.status) }}</span></div>
+      <div class="card-body"><pre class="doc-body" style="max-height:none;font-family:var(--font)">{{ question.body }}</pre></div>
+      {% if question.status == 'CLOSED' %}
+      <div class="card-note">该问题已关闭，不能再回复或请求 AI 辅助。</div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div class="card-title">AI 辅助解答</div><span class="badge badge-info">AI 辅助生成，仅供参考</span></div>
+      <div class="card-body">
+        <div class="toolbar">
+          <button id="ai-btn" class="btn btn-accent" {{ 'disabled' if question.status == 'CLOSED' }}>让 AI 先答一次</button>
+          <button id="handoff-btn" class="btn btn-outline" {{ 'disabled' if question.status == 'CLOSED' }}>转人工答疑</button>
+          <span id="ai-feedback" class="msg" role="status"></span>
+        </div>
+        <p class="uploader-hint">AI 会检索本班知识库并标注可验证的出处；没有依据时会直说，不会编造引用。</p>
+        <div id="ai-answer" class="bubble assistant" style="display:none;max-width:100%;margin-top:14px"></div>
+        <div id="ai-citations" class="citations" style="display:none"></div>
+        {% if ai_answer %}
+        <div class="card-note" style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:14px">
+          <div class="row-meta">上一次 AI 辅助（{{ ai_answer.created_at|localtime }} · {{ '有依据' if ai_answer.status == 'ok' else '无相关资料' }}）</div>
+          <pre class="doc-body" style="max-height:260px;font-family:var(--font)">{{ ai_answer.content }}</pre>
+          {% if ai_answer.citations %}
+          <div class="citations">
+            <div class="citations-h">参考资料来源</div>
+            {% for cite in ai_answer.citations %}
+            <div class="citation"><span class="num">{{ cite.number }}</span>
+              <span>{{ cite.title }} · 切片 {{ cite.chunk_index }} · 字符 {{ cite.start_offset }}–{{ cite.end_offset }}</span>
+              <a href="/api/materials/{{ cite.material_id }}/file">下载原文</a></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div class="card-title">全部回复（{{ replies|length }}）</div>
+        {% if question.handoff %}<span class="badge badge-danger">学生已转人工</span>{% endif %}</div>
+      <div class="card-body">
+        {% if replies %}
+        <div class="row-list">
+          {% for reply in replies %}
+          <div class="list-row" style="align-items:flex-start">
+            <div class="grow">
+              <div class="row-title">
+                {{ reply.author_name }}
+                {% if reply.is_teacher %}<span class="badge badge-brand">教师</span>{% endif %}
+                {% if reply.accepted %}<span class="badge badge-ok">已采纳</span>{% endif %}
+              </div>
+              <div class="row-meta">{{ reply.created_at|localtime }}</div>
+              <pre class="doc-body" style="max-height:none;font-family:var(--font)">{{ reply.body }}</pre>
+            </div>
+            {% if user.role == 'teacher' %}
+            <div class="row-actions">
+              {% if not reply.accepted %}
+              <button class="btn btn-outline btn-sm" data-accept="{{ reply.id }}">采纳此回答</button>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty"><span class="empty-ic">🗨️</span>还没有人工回复。可以先让 AI 试答，或转人工请老师介入。</div>
+        {% endif %}
+
+        {% if question.status != 'CLOSED' %}
+        <div style="margin-top:16px">
+          <label class="field" style="display:block"><span>写下你的回复</span>
+            <textarea id="reply-body" class="input" rows="3" maxlength="2000" placeholder="补充思路、指出错误，或给出你的解法"></textarea></label>
+          <div class="toolbar" style="margin-top:12px">
+            <button id="reply-btn" class="btn btn-primary">提交回复</button>
+            <span id="reply-feedback" class="msg" role="status"></span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if user.role == 'teacher' %}
+    <section class="card">
+      <div class="card-head"><div class="card-title">教师操作</div><span class="badge badge-brand">仅教师</span></div>
+      <div class="card-body">
+        <div class="toolbar">
+          {% if question.status == 'CLOSED' %}
+          <button id="reopen-btn" class="btn btn-outline">重新打开</button>
+          {% else %}
+          <button id="close-btn" class="btn btn-danger">关闭问题</button>
+          {% endif %}
+          {% if question.resolved %}
+          <button id="unaccept-btn" class="btn btn-ghost">取消采纳</button>
+          <button id="faq-btn" class="btn btn-accent">沉淀为 FAQ</button>
+          {% else %}
+          <span class="row-meta">采纳一条回复后才能沉淀为 FAQ。</span>
+          {% endif %}
+          <span id="op-feedback" class="msg" role="status"></span>
+        </div>
+        <div id="faq-editor" style="display:none;margin-top:16px">
+          <label class="field" style="display:block"><span>FAQ 问题</span>
+            <textarea id="faq-question" class="input" rows="3" maxlength="2000"></textarea></label>
+          <label class="field" style="display:block;margin-top:12px"><span>FAQ 答案（可编辑后再发布）</span>
+            <textarea id="faq-answer" class="input" rows="5" maxlength="5000"></textarea></label>
+          <div class="toolbar" style="margin-top:12px">
+            <button id="faq-publish" class="btn btn-primary">确认发布到班级 FAQ</button>
+            <button id="faq-cancel" class="btn btn-ghost">取消</button>
+          </div>
+        </div>
+        {% if faq %}
+        <p class="msg" style="margin-top:12px">该问题已有 FAQ：<span class="badge {{ 'badge-ok' if faq.status == 'published' else 'badge-neutral' }}">{{ '已发布' if faq.status == 'published' else '已撤销' }}</span>
+          <a href="{{ url_for('qa.qa_faq_page') }}">查看班级 FAQ</a></p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+  </div></main>
+</div>
+<script>
+const csrf = {{ csrf_token|tojson }};
+const questionId = {{ question.id }};
+const canWrite = {{ 'true' if question.status != 'CLOSED' else 'false' }};
+
+async function api(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (method !== 'GET') headers['X-CSRF-Token'] = csrf;
+  const response = await fetch(path, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!response.ok) throw new Error(data.error ? data.error.message : ('请求失败 ' + response.status));
+  return data;
+}
+
+function setMsg(node, text, isError) {
+  node.className = 'msg' + (isError ? ' msg-err' : '');
+  node.textContent = text;
+}
+
+const replyBtn = document.getElementById('reply-btn');
+if (replyBtn) {
+  replyBtn.addEventListener('click', async function () {
+    const body = document.getElementById('reply-body').value.trim();
+    const feedback = document.getElementById('reply-feedback');
+    if (!body) { setMsg(feedback, '回复不能为空', true); return; }
+    try {
+      await api('POST', '/api/qa/questions/' + questionId + '/replies', { body: body });
+      location.reload();
+    } catch (e) { setMsg(feedback, e.message, true); }
+  });
+}
+
+const handoffBtn = document.getElementById('handoff-btn');
+if (handoffBtn) {
+  handoffBtn.addEventListener('click', async function () {
+    const feedback = document.getElementById('ai-feedback');
+    try {
+      await api('POST', '/api/qa/questions/' + questionId + '/handoff', {});
+      setMsg(feedback, '已转人工，老师会在待办列表里优先看到这个问题。');
+      handoffBtn.disabled = true;
+    } catch (e) { setMsg(feedback, e.message, true); }
+  });
+}
+
+const aiBtn = document.getElementById('ai-btn');
+if (aiBtn) {
+  aiBtn.addEventListener('click', async function () {
+    const feedback = document.getElementById('ai-feedback');
+    const bubble = document.getElementById('ai-answer');
+    const citeBox = document.getElementById('ai-citations');
+    bubble.style.display = 'block';
+    bubble.textContent = '';
+    citeBox.style.display = 'none';
+    citeBox.innerHTML = '';
+    aiBtn.disabled = true;
+    setMsg(feedback, '检索本班资料并生成回答…');
+    try {
+      const response = await fetch('/api/qa/questions/' + questionId + '/ai-answer', {
+        method: 'POST', headers: { 'X-CSRF-Token': csrf }
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ? data.error.message : 'AI 服务暂不可用');
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let text = '';
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop();
+        blocks.forEach(function (block) {
+          const lines = block.split('\n');
+          const event = (lines.find(function (l) { return l.startsWith('event: '); }) || '').slice(7).trim();
+          const dataLine = lines.find(function (l) { return l.startsWith('data: '); });
+          if (!dataLine) return;
+          const data = JSON.parse(dataLine.slice(6));
+          if (event === 'meta') {
+            if (data.citations && data.citations.length) {
+              citeBox.style.display = 'flex';
+              const head = document.createElement('div');
+              head.className = 'citations-h';
+              head.textContent = '参考资料来源（可验证）';
+              citeBox.appendChild(head);
+              data.citations.forEach(function (cite) {
+                const row = document.createElement('div');
+                row.className = 'citation';
+                const num = document.createElement('span');
+                num.className = 'num';
+                num.textContent = cite.number;
+                const label = document.createElement('span');
+                label.textContent = cite.title + ' · 切片 ' + cite.chunk_index + ' · 字符 ' + cite.start_offset + '–' + cite.end_offset;
+                const link = document.createElement('a');
+                link.href = '/api/materials/' + cite.material_id + '/file';
+                link.textContent = '下载原文';
+                row.append(num, label, link);
+                citeBox.appendChild(row);
+              });
+            }
+            setMsg(feedback, data.status === 'no_hits' ? '本班资料中没有找到依据，回答仅供参考。' : '已找到本班资料依据。');
+          } else if (event === 'delta') {
+            text += data.text;
+            bubble.textContent = text;
+          } else if (event === 'error') {
+            setMsg(feedback, data.error || 'AI 服务中断', true);
+          }
+        });
+      }
+      if (text) {
+        const notice = document.createElement('div');
+        notice.className = 'row-meta';
+        notice.style.marginTop = '10px';
+        notice.textContent = 'AI 辅助生成，仅供参考。以下方人工回复与教师采纳为准。';
+        bubble.appendChild(notice);
+      }
+    } catch (e) {
+      setMsg(feedback, e.message, true);
+    } finally {
+      aiBtn.disabled = false;
+    }
+  });
+}
+
+document.querySelectorAll('[data-accept]').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    const feedback = document.getElementById('op-feedback');
+    try {
+      await api('POST', '/api/qa/questions/' + questionId + '/accept', { reply_id: Number(btn.dataset.accept) });
+      location.reload();
+    } catch (e) { setMsg(feedback, e.message, true); }
+  });
+});
+
+const closeBtn = document.getElementById('close-btn');
+if (closeBtn) closeBtn.addEventListener('click', async function () {
+  const feedback = document.getElementById('op-feedback');
+  try { await api('POST', '/api/qa/questions/' + questionId + '/close', {}); location.reload(); }
+  catch (e) { setMsg(feedback, e.message, true); }
+});
+
+const reopenBtn = document.getElementById('reopen-btn');
+if (reopenBtn) reopenBtn.addEventListener('click', async function () {
+  const feedback = document.getElementById('op-feedback');
+  try { await api('POST', '/api/qa/questions/' + questionId + '/reopen', {}); location.reload(); }
+  catch (e) { setMsg(feedback, e.message, true); }
+});
+
+const unacceptBtn = document.getElementById('unaccept-btn');
+if (unacceptBtn) unacceptBtn.addEventListener('click', async function () {
+  const feedback = document.getElementById('op-feedback');
+  try { await api('DELETE', '/api/qa/questions/' + questionId + '/accept'); location.reload(); }
+  catch (e) { setMsg(feedback, e.message, true); }
+});
+
+const faqBtn = document.getElementById('faq-btn');
+if (faqBtn) faqBtn.addEventListener('click', async function () {
+  const editor = document.getElementById('faq-editor');
+  const feedback = document.getElementById('op-feedback');
+  try {
+    const draft = await api('GET', '/api/qa/questions/' + questionId + '/faq-draft');
+    document.getElementById('faq-question').value = draft.question_text;
+    document.getElementById('faq-answer').value = draft.answer_text;
+    editor.style.display = 'block';
+    setMsg(feedback, draft.existing_faq ? '该问题已有 FAQ，可在 FAQ 页编辑。' : '请确认内容后发布。');
+  } catch (e) { setMsg(feedback, e.message, true); }
+});
+
+const faqCancel = document.getElementById('faq-cancel');
+if (faqCancel) faqCancel.addEventListener('click', function () {
+  document.getElementById('faq-editor').style.display = 'none';
+});
+
+const faqPublish = document.getElementById('faq-publish');
+if (faqPublish) faqPublish.addEventListener('click', async function () {
+  const feedback = document.getElementById('op-feedback');
+  try {
+    await api('POST', '/api/qa/faqs', {
+      question_id: questionId,
+      question_text: document.getElementById('faq-question').value.trim(),
+      answer_text: document.getElementById('faq-answer').value.trim()
+    });
+    location.href = '/qa/faq';
+  } catch (e) { setMsg(feedback, e.message, true); }
+});
+</script>
+{% endblock %}

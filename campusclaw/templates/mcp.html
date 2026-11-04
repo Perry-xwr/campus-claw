@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}MCP 工具 · CampusClaw{% endblock %}
+{% block body %}
+<div class="app">
+
+  <header class="appbar">
+    <div class="appbar-inner">
+      <a class="logo" href="{{ url_for('pages.materials_page') }}">
+        <span class="logo-mark">🎓</span>
+        <span class="logo-text">
+          <strong>CampusClaw</strong>
+          <small>智能教学平台</small>
+        </span>
+      </a>
+
+      <nav class="tabs">
+        <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+        <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+        <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+        <a class="tab" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+        <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+        <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+        <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+        <a class="tab tab-active" href="{{ url_for('pages.mcp_page') }}">MCP</a>
+        <span class="tab tab-off" title="后续课程开放">作业批改</span>
+        <span class="tab tab-off" title="后续课程开放">错题讲解</span>
+      </nav>
+
+      <div class="userbox">
+        <span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+        <span class="badge badge-brand">教师</span>
+        <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="logout">退出</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <section class="banner">
+    <div class="banner-inner">
+      <div>
+        <h1>MCP 工具</h1>
+        <p>登记并连接本班的 MCP 工具服务器，发现工具供解题技能引用；令牌只存服务端，调用全程留审计。</p>
+      </div>
+      <div class="stat-strip">
+        <div class="stat"><b id="stat-servers">–</b><span>本班服务器</span></div>
+        <div class="stat"><b id="stat-connected">–</b><span>已连接</span></div>
+        <div class="stat"><b>{{ user.class_name }}</b><span>生效班级</span></div>
+      </div>
+    </div>
+  </section>
+
+  <main class="shell">
+    <div class="stack">
+
+      <!-- 登记服务器 -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">登记 MCP 服务器</div>
+          <span class="badge badge-accent">连接后可被技能引用</span>
+        </div>
+        <div class="card-body">
+          <div class="toolbar" style="align-items:flex-end;">
+            <div class="field" style="flex:1 1 180px;min-width:160px;">
+              <span>名称（小写字母/数字/连字符）</span>
+              <input class="input" id="srv-name" maxlength="64" placeholder="例如 campus-tools">
+            </div>
+            <div class="field" style="flex:2 1 260px;min-width:220px;">
+              <span>Base URL（填到端口为止，不要带 /mcp）</span>
+              <input class="input" id="srv-url" maxlength="512" placeholder="例如 http://127.0.0.1:8090 或 http://mcp:8090">
+            </div>
+            <div class="field" style="flex:1 1 160px;min-width:150px;">
+              <span>Bearer 令牌（可空）</span>
+              <input class="input" id="srv-token" type="password" maxlength="512" placeholder="仅存服务端，不回显" autocomplete="new-password">
+            </div>
+            <button class="btn btn-primary" id="btn-create">登记</button>
+          </div>
+          <p class="msg" id="create-msg"></p>
+        </div>
+        <div class="card-note">登记后为「未连接」；点「连接」完成握手并发现工具。令牌只写入服务端，任何响应都不回传。</div>
+      </section>
+
+      <!-- 服务器列表 -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">本班服务器</div>
+          <button class="btn btn-ghost btn-sm" id="btn-refresh">刷新</button>
+        </div>
+        <div class="card-body">
+          <table class="skill-table">
+            <thead>
+              <tr><th>名称</th><th>地址</th><th>令牌</th><th>连接状态</th><th>工具数</th><th>操作</th></tr>
+            </thead>
+            <tbody id="server-rows">
+              <tr><td colspan="6" class="empty" style="padding:24px;">加载中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-note">修改或重新登记会清空连接与工具缓存；删除有调用审计的服务器会被拒绝（先保证据）。</div>
+      </section>
+
+      <!-- 已发现工具 -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">已发现工具</div>
+          <span class="badge badge-neutral" id="tools-server">未选择</span>
+        </div>
+        <div class="card-body">
+          <div id="tools-area">
+            <div class="empty" style="padding:24px;">
+              <span class="empty-ic">🧰</span>连接服务器后，这里展示它发现的工具。
+            </div>
+          </div>
+        </div>
+        <div class="card-note">工具清单来自连接时的 tools/list；技能「工具」栏可写「工具名@服务器名」引用这里的工具。</div>
+      </section>
+
+      <!-- 最近调用 -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">最近调用</div>
+          <span class="badge badge-neutral">只读 · 按时间倒序</span>
+        </div>
+        <div class="card-body">
+          <table class="skill-table">
+            <thead>
+              <tr><th>工具引用</th><th>状态</th><th>用户</th><th>时间</th></tr>
+            </thead>
+            <tbody id="call-rows">
+              <tr><td colspan="4" class="empty" style="padding:24px;">加载中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-note">ok=成功、denied=未连接/服务器不存在、error=远端失败；审计只增不改，按班隔离。</div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+<script>
+(function () {
+  "use strict";
+  var CSRF = document.getElementById("csrf-token").value;
+  var servers = [];
+
+  var rowsEl = document.getElementById("server-rows");
+  var callRowsEl = document.getElementById("call-rows");
+  var createMsg = document.getElementById("create-msg");
+  var toolsArea = document.getElementById("tools-area");
+  var toolsServer = document.getElementById("tools-server");
+
+  function api(method, url, body) {
+    var opts = { method: method, headers: { "X-CSRF-Token": CSRF }, credentials: "same-origin" };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(url, opts).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        return { status: resp.status, data: data };
+      });
+    });
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function say(el, text, ok) {
+    el.textContent = text || "";
+    el.className = "msg " + (ok ? "msg-ok" : "msg-err");
+  }
+  function errMsg(r, fallback) {
+    return (r.data && r.data.error && r.data.error.message) || fallback;
+  }
+  function fmtTime(iso) {
+    if (!iso) return "";
+    var d = new Date(iso.replace(" ", "T") + "Z");
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString("zh-CN", { hour12: false });
+  }
+
+  // ---------------------------------------------------------------- 服务器
+  function loadServers() {
+    return api("GET", "/api/mcp/servers").then(function (r) {
+      if (r.status !== 200) { say(createMsg, "服务器列表加载失败", false); return; }
+      servers = r.data.servers || [];
+      renderServers();
+    });
+  }
+  function renderServers() {
+    document.getElementById("stat-servers").textContent = servers.length;
+    document.getElementById("stat-connected").textContent =
+      servers.filter(function (s) { return s.connected; }).length;
+    if (!servers.length) {
+      rowsEl.innerHTML = '<tr><td colspan="6" class="empty" style="padding:24px;">' +
+        '<span class="empty-ic">🔌</span>还没有服务器，先在上方登记一台。</td></tr>';
+      return;
+    }
+    rowsEl.innerHTML = "";
+    servers.forEach(function (s) { rowsEl.appendChild(serverRow(s)); });
+  }
+  function serverRow(s) {
+    var tr = document.createElement("tr");
+    var tokenBadge = s.has_auth
+      ? '<span class="badge badge-ok" title="已配置令牌">● 已配置</span>'
+      : '<span class="badge badge-neutral">无</span>';
+    var statusBadge = s.connected
+      ? '<span class="badge badge-ok">已连接</span>'
+      : '<span class="badge badge-neutral">未连接</span>';
+    tr.innerHTML =
+      '<td class="name mono">' + esc(s.name) + '</td>' +
+      '<td class="mono">' + esc(s.base_url) + '</td>' +
+      '<td>' + tokenBadge + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td>' + (s.connected ? s.tool_count : "–") + '</td>';
+    var actions = document.createElement("td");
+    actions.className = "skill-actions";
+
+    var connectBtn = document.createElement("button");
+    connectBtn.className = "btn btn-accent btn-sm";
+    connectBtn.textContent = s.connected ? "重连" : "连接";
+    connectBtn.onclick = function () { connect(s); };
+    actions.appendChild(connectBtn);
+
+    var disconnectBtn = document.createElement("button");
+    disconnectBtn.className = "btn btn-outline btn-sm";
+    disconnectBtn.textContent = "断开";
+    disconnectBtn.disabled = !s.connected;
+    disconnectBtn.onclick = function () { disconnect(s); };
+    actions.appendChild(disconnectBtn);
+
+    var delBtn = document.createElement("button");
+    delBtn.className = "btn btn-danger btn-sm";
+    delBtn.textContent = "删除";
+    delBtn.onclick = function () { remove(s); };
+    actions.appendChild(delBtn);
+
+    tr.appendChild(actions);
+    return tr;
+  }
+
+  function connect(s) {
+    api("POST", "/api/mcp/servers/" + s.id + "/connect").then(function (r) {
+      if (r.status === 200) {
+        renderTools(s.name, r.data.tools || []);
+        loadServers();
+      } else {
+        // 连接失败：把可读原因显示出来。
+        say(createMsg, errMsg(r, "连接失败"), false);
+        loadServers();
+      }
+    });
+  }
+  function disconnect(s) {
+    api("POST", "/api/mcp/servers/" + s.id + "/disconnect").then(function (r) {
+      if (r.status === 200) {
+        toolsServer.textContent = "未选择";
+        toolsArea.innerHTML = '<div class="empty" style="padding:24px;">' +
+          '<span class="empty-ic">🧰</span>连接服务器后，这里展示它发现的工具。</div>';
+        loadServers();
+      } else {
+        say(createMsg, errMsg(r, "断开失败"), false);
+      }
+    });
+  }
+  function remove(s) {
+    if (!confirm("删除服务器「" + s.name + "」？有调用审计的服务器不能删除。")) return;
+    api("DELETE", "/api/mcp/servers/" + s.id).then(function (r) {
+      if (r.status === 204) { say(createMsg, "已删除", true); loadServers(); }
+      else say(createMsg, errMsg(r, "删除失败"), false);
+    });
+  }
+
+  function renderTools(serverName, tools) {
+    toolsServer.textContent = serverName;
+    if (!tools.length) {
+      toolsArea.innerHTML = '<div class="empty" style="padding:24px;">该服务器没有发现任何工具。</div>';
+      return;
+    }
+    var html = '<table class="skill-table"><thead><tr><th>工具名</th><th>说明</th></tr></thead><tbody>';
+    tools.forEach(function (t) {
+      html += '<tr><td class="name mono">' + esc(t.name) + '</td>' +
+        '<td>' + esc(t.description || "") + '</td></tr>';
+    });
+    html += "</tbody></table>";
+    toolsArea.innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------- 调用审计
+  function loadCalls() {
+    return api("GET", "/api/mcp/tool-calls").then(function (r) {
+      if (r.status !== 200) { renderCalls([]); return; }
+      renderCalls(r.data.calls || []);
+    });
+  }
+  var CALL_BADGE = { ok: "badge-ok", denied: "badge-warn", error: "badge-danger" };
+  var CALL_LABEL = { ok: "成功", denied: "拒绝", error: "失败" };
+  function renderCalls(calls) {
+    if (!calls.length) {
+      callRowsEl.innerHTML = '<tr><td colspan="4" class="empty" style="padding:24px;">' +
+        '<span class="empty-ic">🧾</span>还没有调用记录。</td></tr>';
+      return;
+    }
+    callRowsEl.innerHTML = "";
+    calls.forEach(function (c) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="mono">' + esc(c.tool_ref) + '</td>' +
+        '<td><span class="badge ' + (CALL_BADGE[c.status] || "badge-neutral") + '">' +
+          esc(CALL_LABEL[c.status] || c.status) + '</span>' +
+          '<div class="mono" style="margin-top:4px;color:var(--text-3);">' + esc(c.detail || "") + '</div></td>' +
+        '<td>' + esc(c.username) + '</td>' +
+        '<td class="mono">' + esc(fmtTime(c.created_at)) + '</td>';
+      callRowsEl.appendChild(tr);
+    });
+  }
+
+  // ---------------------------------------------------------------- 登记
+  document.getElementById("btn-create").onclick = function () {
+    var name = document.getElementById("srv-name").value.trim();
+    var url = document.getElementById("srv-url").value.trim();
+    var token = document.getElementById("srv-token").value;
+    if (!name || !url) { say(createMsg, "名称与地址不能为空", false); return; }
+    var body = { name: name, base_url: url };
+    if (token) body.auth_token = token;
+    api("POST", "/api/mcp/servers", body).then(function (r) {
+      if (r.status === 201) {
+        say(createMsg, "已登记，点「连接」发现工具", true);
+        // 提交后清空表单（尤其是令牌密码框，不回显）。
+        document.getElementById("srv-name").value = "";
+        document.getElementById("srv-url").value = "";
+        document.getElementById("srv-token").value = "";
+        loadServers();
+      } else {
+        say(createMsg, errMsg(r, "登记失败"), false);
+      }
+    });
+  };
+  document.getElementById("btn-refresh").onclick = function () {
+    loadServers(); loadCalls();
+  };
+
+  loadServers();
+  loadCalls();
+})();
+</script>
+{% endblock %}

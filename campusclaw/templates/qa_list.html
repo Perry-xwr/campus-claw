@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}班级答疑广场 · CampusClaw{% endblock %}
+{% block body %}
+{% set status_label = {'OPEN':'待回复','ANSWERED':'已回复','ACCEPTED':'已采纳','CLOSED':'已关闭'} %}
+{% set status_badge = {'OPEN':'badge-warn','ANSWERED':'badge-info','ACCEPTED':'badge-ok','CLOSED':'badge-neutral'} %}
+<div class="app">
+  <header class="appbar"><div class="appbar-inner">
+    <a class="logo" href="{{ url_for('pages.materials_page') }}"><span class="logo-mark">🎓</span><span class="logo-text"><strong>CampusClaw</strong><small>智能教学平台</small></span></a>
+    <nav class="tabs">
+      <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+      <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+      <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+      <a class="tab tab-active" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+      <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+      {% if user.role == 'teacher' %}
+      <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+      <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+      {% endif %}
+    </nav>
+    <div class="userbox"><span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+      <span class="badge badge-brand">{{ '教师' if user.role == 'teacher' else '学生' }}</span>
+      <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="logout">退出</button></form>
+    </div>
+  </div></header>
+
+  <section class="banner"><div class="banner-inner">
+    <div><h1>班级答疑广场</h1><p>{{ user.class_name }} 班的公开问答：提问、AI 辅助、教师答疑，优质问答沉淀为 FAQ。</p></div>
+    <div class="stat-strip">
+      <div class="stat"><b>{{ summary.total }}</b><span>问题总数</span></div>
+      <div class="stat"><b>{{ summary.pending }}</b><span>待解决</span></div>
+      <div class="stat"><b>{{ summary.resolved }}</b><span>已解决</span></div>
+    </div>
+  </div></section>
+
+  <main class="shell"><div class="stack">
+    <section class="card">
+      <div class="card-head"><div class="card-title">我要提问</div><span class="badge badge-accent">AI 先答，教师兜底</span></div>
+      <div class="card-body">
+        <label class="field"><span>标题</span><input id="q-title" class="input" maxlength="120" placeholder="一句话说清你的问题，例如：为什么列表推导式的变量作用域不同？"></label>
+        <label class="field" style="display:block;margin-top:12px"><span>详细描述</span><textarea id="q-body" class="input" rows="4" maxlength="5000" placeholder="补充题目、报错信息或你已尝试的思路"></textarea></label>
+        <div class="toolbar" style="margin-top:14px">
+          <button id="q-submit" class="btn btn-primary">发布问题</button>
+          <span id="q-feedback" class="msg" role="status"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">本班问题</div>
+        <div class="toolbar">
+          <a class="btn btn-sm {{ 'btn-primary' if not status_filter else 'btn-outline' }}" href="{{ url_for('qa.qa_list_page', sort=sort) }}">全部</a>
+          {% for code, label in status_label.items() %}
+          <a class="btn btn-sm {{ 'btn-primary' if status_filter == code else 'btn-outline' }}" href="{{ url_for('qa.qa_list_page', status=code, sort=sort) }}">{{ label }}</a>
+          {% endfor %}
+          <a class="btn btn-sm {{ 'btn-primary' if sort == 'new' else 'btn-outline' }}" href="{{ url_for('qa.qa_list_page', status=status_filter or None, sort='new') }}">最新</a>
+          <a class="btn btn-sm {{ 'btn-primary' if sort == 'old' else 'btn-outline' }}" href="{{ url_for('qa.qa_list_page', status=status_filter or None, sort='old') }}">最早</a>
+          <a class="btn btn-sm {{ 'btn-primary' if sort == 'active' else 'btn-outline' }}" href="{{ url_for('qa.qa_list_page', status=status_filter or None, sort='active') }}">讨论最多</a>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if payload["items"] %}
+        <div class="row-list">
+          {% for item in payload["items"] %}
+          <div class="list-row">
+            <div class="grow">
+              <div class="row-title"><a href="{{ url_for('qa.qa_detail_page', question_id=item.id) }}">{{ item.title }}</a></div>
+              <div class="row-meta">{{ item.author_name }} · {{ item.created_at|localtime }} · {{ item.reply_count }} 条回复{% if item.handoff %} · <span class="badge badge-danger">已转人工</span>{% endif %}</div>
+            </div>
+            <div class="row-actions">
+              <span class="badge {{ status_badge.get(item.status, 'badge-neutral') }}">{{ status_label.get(item.status, item.status) }}</span>
+              <a class="btn btn-outline btn-sm" href="{{ url_for('qa.qa_detail_page', question_id=item.id) }}">查看</a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="toolbar" style="margin-top:16px;justify-content:space-between">
+          <span class="row-meta">共 {{ payload.total }} 条，第 {{ payload.page }} 页，每页 {{ payload.size }} 条</span>
+          <span class="toolbar">
+            {% if payload.page > 1 %}
+            <a class="btn btn-outline btn-sm" href="{{ url_for('qa.qa_list_page', status=status_filter or None, sort=sort, page=payload.page-1) }}">上一页</a>
+            {% endif %}
+            {% if payload.page * payload.size < payload.total %}
+            <a class="btn btn-outline btn-sm" href="{{ url_for('qa.qa_list_page', status=status_filter or None, sort=sort, page=payload.page+1) }}">下一页</a>
+            {% endif %}
+          </span>
+        </div>
+        {% else %}
+        <div class="empty"><span class="empty-ic">💬</span>本班还没有符合条件的问题，来提第一个吧。</div>
+        {% endif %}
+      </div>
+    </section>
+  </div></main>
+</div>
+<script>
+const csrf = {{ csrf_token|tojson }};
+const feedback = document.getElementById('q-feedback');
+document.getElementById('q-submit').addEventListener('click', async function () {
+  const title = document.getElementById('q-title').value.trim();
+  const body = document.getElementById('q-body').value.trim();
+  feedback.className = 'msg';
+  if (!title || !body) { feedback.className = 'msg msg-err'; feedback.textContent = '标题和正文都不能为空'; return; }
+  feedback.textContent = '发布中…';
+  try {
+    const response = await fetch('/api/qa/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ title: title, body: body })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ? data.error.message : '发布失败');
+    location.href = '/qa/questions/' + data.id;
+  } catch (e) {
+    feedback.className = 'msg msg-err';
+    feedback.textContent = e.message;
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}登录 · CampusClaw{% endblock %}
+{% block body %}
+<div class="login-stage">
+
+  <div class="login-card">
+    <div class="login-head">
+      <span class="logo-mark">🎓</span>
+      <div>
+        <h1>CampusClaw</h1>
+        <p>中小学教研智能体平台 · 按班级管理教学材料</p>
+      </div>
+    </div>
+
+    <p class="login-lead">
+      教师上传讲义，本班师生读取，跨班数据严格隔离。
+      身份、角色与班级边界全部由服务端判定，不信任客户端提交的任何身份字段。
+    </p>
+
+    <form class="login-form" method="post" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <span>账号</span>
+        <input class="input" id="username" name="username" type="text"
+               autocomplete="username" autofocus required>
+      </div>
+      <div class="field">
+        <span>密码</span>
+        <input class="input" id="password" name="password" type="password"
+               autocomplete="current-password" required>
+      </div>
+      <div class="login-submit">
+        <button type="submit" class="btn btn-primary btn-block">登录</button>
+      </div>
+    </form>
+
+    <div class="divider">预置账号（点击填入）</div>
+    <div class="account-grid">
+      {% for account in accounts %}
+      <button type="button" class="account"
+              data-username="{{ account.username }}"
+              data-password="{{ account.password }}">
+        <span class="account-avatar">{{ account.emoji }}</span>
+        <span class="account-info">
+          <span class="account-name">{{ account.username }}</span>
+          <span class="account-meta">{{ account.role }} · {{ account.class_name }} 班</span>
+        </span>
+      </button>
+      {% endfor %}
+    </div>
+
+    <p class="login-foot">内置演示凭据，仅供本机体验；正式部署请用环境变量覆盖</p>
+  </div>
+
+</div>
+
+<script>
+  document.querySelectorAll('.account').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.getElementById('username').value = button.dataset.username;
+      document.getElementById('password').value = button.dataset.password;
+      document.getElementById('password').focus();
+    });
+  });
+</script>
+{% endblock %}

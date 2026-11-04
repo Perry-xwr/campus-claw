@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% block title %}解题助手 · CampusClaw{% endblock %}
+{% block body %}
+<style>
+  .chat-mode{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;
+             border-top:1px solid #e4e6ee;background:#fbfbfd}
+  .chat-mode-label{font-size:12px;color:#6b6590}
+  .chat-mode-tip{font-size:12px;color:#8a86a8}
+  .conv-row{display:flex;gap:6px;align-items:stretch}
+  .conv-row .conv-item{flex:1}
+  .conv-del{border:1px solid #e4e6ee;background:#fff;color:#8a86a8;border-radius:8px;
+            width:30px;min-width:30px;cursor:pointer;font-size:16px;line-height:1}
+  .conv-del:hover{color:#b3352c;border-color:#e8c9c5;background:#fdf3f2}
+</style>
+<div class="app">
+
+  <header class="appbar">
+    <div class="appbar-inner">
+      <a class="logo" href="{{ url_for('pages.materials_page') }}">
+        <span class="logo-mark">🎓</span>
+        <span class="logo-text">
+          <strong>CampusClaw</strong>
+          <small>智能教学平台</small>
+        </span>
+      </a>
+
+      <nav class="tabs">
+        <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+        <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+        <a class="tab tab-active" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+        <a class="tab" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+        <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+        {% if user.role == 'teacher' %}
+        <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+        <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+        <a class="tab" href="{{ url_for('pages.mcp_page') }}">MCP</a>
+        {% endif %}
+        <span class="tab tab-off" title="后续课程开放">作业批改</span>
+        <span class="tab tab-off" title="后续课程开放">错题讲解</span>
+      </nav>
+
+      <div class="userbox">
+        <span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+        <span class="badge badge-brand">{{ '教师' if user.role == 'teacher' else '学生' }}</span>
+        <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="logout">退出</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <section class="banner">
+    <div class="banner-inner">
+      <div>
+        <h1>解题助手</h1>
+        <p>提问后先检索 {{ user.class_name }} 班知识库，再按本班提示词与解题引导技能流式作答，引用可回溯。</p>
+      </div>
+      <div class="stat-strip">
+        <div class="stat"><b id="stat-convs">–</b><span>我的会话</span></div>
+        <div class="stat"><b>{{ user.class_name }}</b><span>检索范围</span></div>
+        <div class="stat"><b>SSE</b><span>流式输出</span></div>
+      </div>
+    </div>
+  </section>
+
+  <main class="shell">
+    <div class="tutor-layout">
+
+      <!-- 会话列表 -->
+      <section class="card conv-panel">
+        <div class="card-head">
+          <div class="card-title">会话</div>
+          <button class="btn btn-primary btn-sm" id="btn-new">＋ 新会话</button>
+        </div>
+        <div class="card-body">
+          <div class="conv-list" id="conv-list">
+            <div class="empty" style="padding:20px 8px;">
+              <span class="empty-ic">💬</span>加载中…
+            </div>
+          </div>
+        </div>
+        <div class="card-note">只显示本人会话；跨班数据在服务端即不可见。</div>
+      </section>
+
+      <!-- 对话区 -->
+      <section class="card chat-card">
+        <div class="chat-scroll" id="chat-scroll">
+          <div class="empty" id="chat-empty">
+            <span class="empty-ic">🧭</span>
+            从左侧选择一个会话，或点「新会话」开始提问。<br>
+            <small>默认「引导」只给思路；需要结论时把「回答方式」切到「直接回答」。</small>
+          </div>
+        </div>
+        <div class="chat-error" id="chat-error"></div>
+        <div class="chat-mode" id="chat-mode">
+          <span class="chat-mode-label">回答方式</span>
+          <button type="button" class="btn btn-sm btn-accent mode-btn" data-mode="guide">🧭 引导</button>
+          <button type="button" class="btn btn-sm btn-ghost mode-btn" data-mode="direct">✅ 直接回答</button>
+          <span class="chat-mode-tip">引导只给思路；直接回答会给结论与数量（依据仍标出处）。</span>
+        </div>
+        <div class="chat-input-bar">
+          <textarea class="input" id="input" rows="1" maxlength="500"
+                    placeholder="输入问题，例如：Python 课程文件有几个？（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button class="btn btn-accent" id="btn-send">发送</button>
+        </div>
+        <div class="chat-hint">回答前先检索本班知识库：有嵌入配置时走混合检索（关键词+向量），否则关键词；检索不到时会明说资料中未找到，不编造出处。</div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+<script>
+(function () {
+  "use strict";
+  var CSRF = document.getElementById("csrf-token").value;
+  var state = { conversations: [], current: null, messages: [], streaming: false };
+
+  var listEl = document.getElementById("conv-list");
+  var scrollEl = document.getElementById("chat-scroll");
+  var errorEl = document.getElementById("chat-error");
+  var inputEl = document.getElementById("input");
+  var sendBtn = document.getElementById("btn-send");
+  var newBtn = document.getElementById("btn-new");
+
+  function api(method, url, body) {
+    var opts = {
+      method: method,
+      headers: { "X-CSRF-Token": CSRF },
+      credentials: "same-origin"
+    };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(url, opts).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        return { status: resp.status, data: data };
+      });
+    });
+  }
+
+  function showError(text) { errorEl.textContent = text || ""; }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtTime(iso) {
+    if (!iso) return "";
+    var d = new Date(iso.replace(" ", "T") + "Z");
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString("zh-CN", { hour12: false });
+  }
+
+  // 工具调用状态 → 徽章样式与中文标签。
+  var TOOL_BADGE = { ok: "badge-ok", denied: "badge-warn", error: "badge-danger" };
+  var TOOL_LABEL = { ok: "成功", denied: "拒绝", error: "失败" };
+  function toolBadge(status) { return TOOL_BADGE[status] || "badge-neutral"; }
+  function toolLabel(status) { return TOOL_LABEL[status] || status; }
+
+  // ---------------------------------------------------------------- 会话列表
+  function renderList() {
+    document.getElementById("stat-convs").textContent = state.conversations.length;
+    if (!state.conversations.length) {
+      listEl.innerHTML = '<div class="empty" style="padding:20px 8px;">' +
+        '<span class="empty-ic">💬</span>还没有会话，点「新会话」开始。</div>';
+      return;
+    }
+    listEl.innerHTML = "";
+    state.conversations.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "conv-row";
+      var btn = document.createElement("button");
+      btn.className = "conv-item" + (state.current && state.current.id === c.id ? " active" : "");
+      btn.innerHTML = '<span class="t">' + esc(c.title) + '</span>' +
+        '<span class="d">' + esc(fmtTime(c.updated_at || c.created_at)) + '</span>';
+      btn.onclick = function () { openConversation(c.id); };
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "conv-del";
+      del.title = "删除会话";
+      del.textContent = "×";
+      del.onclick = function (ev) { ev.stopPropagation(); deleteConversation(c); };
+      row.appendChild(btn);
+      row.appendChild(del);
+      listEl.appendChild(row);
+    });
+  }
+
+  function deleteConversation(c) {
+    if (!confirm("删除会话「" + c.title + "」？聊天记录会一并删除，无法恢复。")) return;
+    api("DELETE", "/api/conversations/" + c.id).then(function (r) {
+      if (r.status === 204) {
+        state.conversations = state.conversations.filter(function (x) { return x.id !== c.id; });
+        if (state.current && state.current.id === c.id) {
+          state.current = null;
+          state.messages = [];
+          loadMode();
+        }
+        renderList();
+        renderMessages();
+        showError("");
+      } else {
+        showError((r.data.error && r.data.error.message) || "删除会话失败");
+      }
+    });
+  }
+
+  function loadConversations() {
+    return api("GET", "/api/conversations").then(function (r) {
+      if (r.status !== 200) { showError("会话列表加载失败"); return; }
+      state.conversations = r.data.conversations || [];
+      renderList();
+    });
+  }
+
+  function openConversation(id) {
+    showError("");
+    return api("GET", "/api/conversations/" + id).then(function (r) {
+      if (r.status !== 200) { showError("会话不存在或无权访问"); return; }
+      state.current = r.data.conversation;
+      state.messages = r.data.messages || [];
+      loadMode();
+      renderList();
+      renderMessages();
+    });
+  }
+
+  // ---------------------------------------------------------------- 消息渲染
+  function renderMessages() {
+    scrollEl.innerHTML = "";
+    if (!state.current) {
+      scrollEl.innerHTML = '<div class="empty" id="chat-empty">' +
+        '<span class="empty-ic">🧭</span>从左侧选择一个会话开始提问。</div>';
+      return;
+    }
+    if (!state.messages.length) {
+      scrollEl.innerHTML = '<div class="empty"><span class="empty-ic">🧭</span>' +
+        '新会话已就绪，输入问题开始吧。<br><small>默认「引导」只给思路；需要结论时切到「直接回答」。</small></div>';
+      return;
+    }
+    state.messages.forEach(function (m) { scrollEl.appendChild(bubbleNode(m)); });
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+  }
+
+  function bubbleNode(m) {
+    var wrap = document.createElement("div");
+    var isUser = m.role === "user";
+    wrap.className = "bubble " + (isUser ? "user" : "assistant");
+    var html = "";
+    if (!isUser) {
+      var badges = "";
+      if (m.answer_mode === "direct") {
+        badges += '<span class="badge badge-accent">✅ 直接回答</span>';
+      }
+      if (m.retrieval_mode) {
+        badges += '<span class="badge badge-neutral">🔎 ' + esc(m.retrieval_mode) + '</span>';
+      }
+      if (m.skill_name) {
+        badges += '<span class="badge badge-brand">🧭 ' + esc(m.skill_name) + '</span>';
+      }
+      if (m.citations && m.citations.length) {
+        badges += '<span class="badge badge-accent">📚 引用 ' + m.citations.length + '</span>';
+      } else {
+        badges += '<span class="badge badge-neutral">本班资料未命中</span>';
+      }
+      // 本次调用的 MCP 工具徽章（🔧 + 引用 + 状态色）。
+      (m.tool_calls || []).forEach(function (t) {
+        badges += '<span class="badge ' + toolBadge(t.status) + '">🔧 ' +
+          esc(t.ref) + " · " + toolLabel(t.status) + "</span>";
+      });
+      html += '<div class="bubble-meta">' + badges + '</div>';
+    }
+    html += '<div class="content">' + esc(m.content) + "</div>";
+    // 工具调用清单（在引用出处之前）。
+    if (!isUser && m.tool_calls && m.tool_calls.length) {
+      html += '<div class="citations"><div class="citations-h">工具调用</div>' +
+        m.tool_calls.map(function (t) {
+          var text = t.text || "";
+          if (text.length > 120) text = text.slice(0, 120) + "…";
+          return '<div class="citation"><span class="badge ' + toolBadge(t.status) + '">' +
+            toolLabel(t.status) + '</span><span class="mono">' + esc(t.ref) + "</span>" +
+            (text ? "<span>" + esc(text) + "</span>" : "") + "</div>";
+        }).join("") + "</div>";
+    }
+    if (!isUser && m.citations && m.citations.length) {
+      html += '<div class="citations"><div class="citations-h">引用出处</div>' +
+        m.citations.map(function (c) {
+          return '<div class="citation"><span class="num">' + c.number + "</span>" +
+            '<a href="' + esc(c.material_url) + '" target="_blank" rel="noopener">《' +
+            esc(c.title) + "》</a><span>切片 " + c.chunk_index + " · 位置 " +
+            c.start_offset + "-" + c.end_offset + "</span></div>";
+        }).join("") + "</div>";
+    }
+    wrap.innerHTML = html;
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------- 回答方式
+  var modeEl = document.getElementById("chat-mode");
+  var currentMode = "guide";
+
+  function modeKey(cid) { return "campusclaw.answerMode." + cid; }
+
+  function loadMode() {
+    currentMode = "guide";
+    try {
+      if (state.current) {
+        var saved = localStorage.getItem(modeKey(state.current.id));
+        if (saved === "direct" || saved === "guide") currentMode = saved;
+      }
+    } catch (e) { /* 隐私模式下 localStorage 可能不可用 */ }
+    renderMode();
+  }
+
+  function renderMode() {
+    var buttons = modeEl.querySelectorAll(".mode-btn");
+    for (var i = 0; i < buttons.length; i++) {
+      var on = buttons[i].getAttribute("data-mode") === currentMode;
+      buttons[i].className = "btn btn-sm mode-btn " + (on ? "btn-accent" : "btn-ghost");
+    }
+  }
+
+  function setMode(mode) {
+    currentMode = mode;
+    try {
+      if (state.current) localStorage.setItem(modeKey(state.current.id), mode);
+    } catch (e) { /* 忽略 */ }
+    renderMode();
+  }
+
+  modeEl.addEventListener("click", function (e) {
+    var target = e.target;
+    while (target && target !== modeEl && !target.classList.contains("mode-btn")) {
+      target = target.parentNode;
+    }
+    if (target && target !== modeEl) setMode(target.getAttribute("data-mode"));
+  });
+
+  // ---------------------------------------------------------------- 发送（SSE）
+  function send() {
+    var content = inputEl.value.trim();
+    if (!content || state.streaming) return;
+    if (!state.current) {
+      api("POST", "/api/conversations", {}).then(function (r) {
+        if (r.status !== 201) { showError("创建会话失败"); return; }
+        state.conversations.unshift(r.data);
+        state.current = r.data;
+        state.messages = [];
+        loadMode();
+        renderList();
+        renderMessages();
+        send();
+      });
+      return;
+    }
+    showError("");
+    inputEl.value = "";
+    autoGrow();
+
+    // 用户消息立即上屏
+    state.messages.push({ role: "user", content: content });
+    renderMessages();
+
+    // 助手占位气泡（流式填充）
+    var assistant = {
+      role: "assistant", content: "", citations: [], skill_name: "",
+      tool_calls: [], answer_mode: currentMode, retrieval_mode: ""
+    };
+    state.messages.push(assistant);
+    var node = bubbleNode(assistant);
+    var contentEl = node.querySelector(".content");
+    scrollEl.appendChild(node);
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+
+    state.streaming = true;
+    sendBtn.disabled = true;
+    sendBtn.textContent = "生成中…";
+
+    fetch("/api/conversations/" + state.current.id + "/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF },
+      credentials: "same-origin",
+      body: JSON.stringify({ content: content, mode: currentMode })
+    }).then(function (resp) {
+      if (!resp.ok) {
+        return resp.json().then(function (data) {
+          throw new Error((data.error && data.error.message) || ("HTTP " + resp.status));
+        });
+      }
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = "";
+      var caret = null;
+
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) { finish(); return; }
+          buffer += decoder.decode(r.value, { stream: true });
+          var idx;
+          while ((idx = buffer.indexOf("\n\n")) >= 0) {
+            var block = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+            handleBlock(block);
+          }
+          return pump();
+        });
+      }
+
+      function handleBlock(block) {
+        var event = "message", dataLines = [];
+        block.split("\n").forEach(function (line) {
+          if (line.indexOf("event:") === 0) event = line.slice(6).trim();
+          else if (line.indexOf("data:") === 0) dataLines.push(line.slice(5).replace(/^\s/, ""));
+        });
+        if (!dataLines.length) return;
+        var data;
+        try { data = JSON.parse(dataLines.join("\n")); } catch (e) { return; }
+        if (event === "meta") {
+          assistant.citations = data.citations || [];
+          assistant.skill_name = data.skill_name || "";
+          assistant.tool_calls = data.tool_calls || [];
+          assistant.answer_mode = data.answer_mode || currentMode;
+          assistant.retrieval_mode = data.retrieval_mode || "";
+          node.replaceWith(bubbleNode(assistant));
+          node = scrollEl.lastElementChild;
+          contentEl = node.querySelector(".content");
+        } else if (event === "delta") {
+          assistant.content += data.text || "";
+          contentEl.innerHTML = esc(assistant.content);
+          if (!caret) {
+            caret = document.createElement("span");
+            caret.className = "stream-caret";
+          }
+          contentEl.appendChild(caret);
+          scrollEl.scrollTop = scrollEl.scrollHeight;
+        } else if (event === "error") {
+          showError(data.error || "生成失败");
+        }
+      }
+
+      function finish() {
+        if (caret && caret.parentNode) caret.parentNode.removeChild(caret);
+        loadConversations();
+      }
+
+      return pump();
+    }).catch(function (err) {
+      showError(err.message || "网络错误，回答未保存");
+      // 失败时移除未完成的占位气泡
+      var i = state.messages.indexOf(assistant);
+      if (i >= 0 && !assistant.content) state.messages.splice(i, 1);
+      renderMessages();
+    }).then(function () {
+      state.streaming = false;
+      sendBtn.disabled = false;
+      sendBtn.textContent = "发送";
+      inputEl.focus();
+    });
+  }
+
+  // ---------------------------------------------------------------- 输入行为
+  function autoGrow() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px";
+  }
+  inputEl.addEventListener("input", autoGrow);
+  inputEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  sendBtn.onclick = send;
+  newBtn.onclick = function () {
+    api("POST", "/api/conversations", {}).then(function (r) {
+      if (r.status !== 201) { showError("创建会话失败"); return; }
+      state.conversations.unshift(r.data);
+      state.current = r.data;
+      state.messages = [];
+      loadMode();
+      renderList();
+      renderMessages();
+      inputEl.focus();
+    });
+  };
+
+  loadMode();
+  loadConversations();
+})();
+</script>
+{% endblock %}

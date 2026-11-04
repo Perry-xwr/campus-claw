@@ -1,0 +1,22 @@
+# 构建上下文瘦身：只保留运行镜像真正需要的源码。
+# 数据与上传目录由 Compose 挂载，不需要打进镜像。
+.git
+.gitattributes
+.venv
+.workbuddy
+.codebuddy
+.vscode
+__pycache__
+*.py[cod]
+.pytest_cache
+data
+uploads
+docs
+output
+tmp
+apitest
+openspec
+add-auth-rbac-class-knowledge
+start-all.cmd
+*.md
+!mcp-server/README.md

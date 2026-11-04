@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}知识检索 · CampusClaw{% endblock %}
+{% block body %}
+<div class="app">
+  <header class="appbar"><div class="appbar-inner">
+    <a class="logo" href="{{ url_for('pages.materials_page') }}"><span class="logo-mark">🎓</span><span class="logo-text"><strong>CampusClaw</strong><small>智能教学平台</small></span></a>
+    <nav class="tabs">
+      <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+      <a class="tab tab-active" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+      <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+      <a class="tab" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+      <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+      {% if user.role == 'teacher' %}
+      <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+      <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+      {% endif %}
+      <span class="tab tab-off">作业批改</span><span class="tab tab-off">错题讲解</span>
+    </nav>
+    <div class="userbox"><span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+      <span class="badge badge-brand">{{ '教师' if user.role == 'teacher' else '学生' }}</span>
+      <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="logout">退出</button></form>
+    </div>
+  </div></header>
+  <section class="banner"><div class="banner-inner"><div><h1>知识库检索</h1><p>从 {{ user.class_name }} 班材料中寻找依据，查看切片位置并打开原文。</p></div>
+    <div class="stat-strip"><div class="stat"><b>{{ items|length }}</b><span>本班材料</span></div><div class="stat"><b>{{ user.class_name }}</b><span>检索范围</span></div></div>
+  </div></section>
+  <main class="shell"><div class="stack">
+    <section class="card"><div class="card-head"><div class="card-title">查找资料</div><span class="badge badge-info">出处可追溯</span></div>
+      <div class="card-body"><form id="search-form">
+        <label class="field"><span>输入问题或关键词</span><input id="query" class="input" maxlength="500" required placeholder="例如：课程作业什么时候提交？"></label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center">
+          <label class="field"><span>检索方式</span><select id="mode" class="input"><option value="hybrid">混合检索</option><option value="keyword">关键词</option><option value="vector">向量</option></select></label>
+          <button type="submit" class="btn btn-primary">检索</button><button type="button" id="ask" class="btn btn-outline">生成简短回答</button>
+        </div></form><p id="feedback" class="msg" role="status"></p></div></section>
+    <section class="card"><div class="card-head"><div class="card-title">回答与出处</div></div><div class="card-body">
+      <p id="answer" class="msg"></p><div id="results" class="row-list"></div>
+    </div></section>
+    {% if user.role == 'teacher' %}
+    <section class="card"><div class="card-head"><div class="card-title">材料索引</div><span class="badge badge-accent">教师可重建</span></div>
+      <div class="card-body"><div class="row-list" id="index-list">
+      {% for item in items %}<div class="list-row" data-id="{{ item.id }}"><div class="grow"><div class="row-title">{{ item.title }}</div><div class="row-meta" data-role="status">读取状态中…</div></div>
+        <div class="row-actions"><select class="input" data-role="strategy"><option value="auto">自动切分</option><option value="hierarchy">按标题分章</option><option value="custom">自定义切分</option></select>
+          <input class="input" data-role="size" type="number" min="100" max="2000" value="800" title="每片字符数" style="width:90px"><input class="input" data-role="overlap" type="number" min="0" max="0.5" step="0.05" value="0.1" title="重叠比例" style="width:80px">
+          <select class="input" data-role="separator" title="自定义分隔符"><option value="blankline">空行</option><option value="newline">换行</option><option value="sentence">句号</option></select>
+          <button type="button" class="btn btn-outline btn-sm" data-role="reindex">重建</button></div></div>{% endfor %}
+      </div></div></section>
+    {% endif %}
+  </div></main>
+</div>
+<script>
+const csrf = {{ csrf_token|tojson }};
+const results = document.getElementById('results');
+const feedback = document.getElementById('feedback');
+function showError(e) { feedback.className='msg msg-err'; feedback.textContent=e.message || '服务暂不可用'; }
+async function postJson(path, body, writing) {
+  const headers={'Content-Type':'application/json'};
+  if (writing) headers['X-CSRF-Token']=csrf;
+  const response=await fetch(path,{method:'POST',headers,body:JSON.stringify(body)});
+  const data=await response.json();
+  if (!response.ok) throw new Error(data.error ? data.error.message : ('请求失败 '+response.status));
+  return data;
+}
+function clear(node) { while(node.firstChild) node.removeChild(node.firstChild); }
+function showHits(hits) {
+  clear(results);
+  hits.forEach(function(hit) {
+    const row=document.createElement('div'); row.className='list-row';
+    const content=document.createElement('div'); content.className='grow';
+    const title=document.createElement('div'); title.className='row-title'; title.textContent=hit.title;
+    const meta=document.createElement('div'); meta.className='row-meta';
+    meta.textContent='切片 '+hit.chunk_index+' · 字符 '+hit.start_offset+'–'+hit.end_offset+(hit.offset_basis==='processed'?'（预处理文本）':'');
+    const excerpt=document.createElement('p'); excerpt.className='msg'; excerpt.textContent=hit.excerpt;
+    content.append(title,meta,excerpt);
+    const link=document.createElement('a'); link.className='btn btn-outline btn-sm'; link.href='/materials?open='+encodeURIComponent(hit.material_id); link.textContent='打开材料';
+    row.append(content,link); results.appendChild(row);
+  });
+}
+document.getElementById('search-form').addEventListener('submit',async function(event) {
+  event.preventDefault(); feedback.className='msg'; feedback.textContent='检索中…'; document.getElementById('answer').textContent='';
+  try { const data=await postJson('/api/search',{query:document.getElementById('query').value,mode:document.getElementById('mode').value});
+    showHits(data.hits); feedback.textContent=data.message || ('找到 '+data.hits.length+' 个相关切片'); }
+  catch(e){clear(results);showError(e);}
+});
+document.getElementById('ask').addEventListener('click',async function(){
+  const q=document.getElementById('query').value.trim(); if(!q){feedback.textContent='请先输入问题';return;}
+  feedback.className='msg'; feedback.textContent='查找依据并生成回答…';
+  try { const data=await postJson('/api/ask',{question:q}); document.getElementById('answer').textContent=data.answer;
+    showHits(data.citations); feedback.textContent=data.citations.length?'回答依据如下：':'没有找到本班可用依据'; }
+  catch(e){showError(e);}
+});
+document.querySelectorAll('#index-list .list-row').forEach(function(row){
+  const id=row.dataset.id, status=row.querySelector('[data-role=status]');
+  let poll=null;
+  async function refresh(){ clearTimeout(poll); try{const r=await fetch('/api/materials/'+id+'/index-status');const d=await r.json();status.textContent='索引状态：'+d.status+(d.last_error?' · '+d.last_error:'');if(d.status==='pending'||d.status==='running') poll=setTimeout(refresh,4000);}catch(e){status.textContent='状态暂不可用';}}
+  refresh();
+  row.querySelector('[data-role=reindex]').addEventListener('click',async function(){
+    const strategy=row.querySelector('[data-role=strategy]').value;
+    const body={strategy};
+    if(strategy==='custom'){body.chunk_size=Number(row.querySelector('[data-role=size]').value);body.overlap_ratio=Number(row.querySelector('[data-role=overlap]').value);body.separator=row.querySelector('[data-role=separator]').value;}
+    try{await postJson('/api/materials/'+id+'/reindex',body,true);await refresh();}catch(e){status.textContent=e.message;}
+  });
+});
+</script>
+{% endblock %}

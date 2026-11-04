@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}助手设置 · CampusClaw{% endblock %}
+{% block body %}
+<div class="app">
+
+  <header class="appbar">
+    <div class="appbar-inner">
+      <a class="logo" href="{{ url_for('pages.materials_page') }}">
+        <span class="logo-mark">🎓</span>
+        <span class="logo-text">
+          <strong>CampusClaw</strong>
+          <small>智能教学平台</small>
+        </span>
+      </a>
+
+      <nav class="tabs">
+        <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+        <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+        <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+        <a class="tab" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+        <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+        <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+        <a class="tab tab-active" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+        <a class="tab" href="{{ url_for('pages.mcp_page') }}">MCP</a>
+        <span class="tab tab-off" title="后续课程开放">作业批改</span>
+        <span class="tab tab-off" title="后续课程开放">错题讲解</span>
+      </nav>
+
+      <div class="userbox">
+        <span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+        <span class="badge badge-brand">教师</span>
+        <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="logout">退出</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <section class="banner">
+    <div class="banner-inner">
+      <div>
+        <h1>助手设置</h1>
+        <p>维护 {{ user.class_name }} 班的解题助手提示词与「解题引导」类技能；只引导、不直接给最终答案。</p>
+      </div>
+      <div class="stat-strip">
+        <div class="stat"><b id="stat-skills">–</b><span>本班技能</span></div>
+        <div class="stat"><b id="stat-prompt">–</b><span>提示词字数</span></div>
+        <div class="stat"><b>{{ user.class_name }}</b><span>生效班级</span></div>
+      </div>
+    </div>
+  </section>
+
+  <main class="shell">
+    <div class="stack">
+
+      <!-- 提示词 -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">班级提示词</div>
+          <span class="badge badge-accent">决定助手是谁</span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <span>提示词内容（1～2000 字符，保存后对学生提问立即生效）</span>
+            <textarea class="input" id="prompt-body" rows="5" maxlength="2000"
+                      placeholder="例如：你是 A 班解题助手，只引导思路，不直接给最终答案。"></textarea>
+          </div>
+          <div class="toolbar" style="margin-top:12px;">
+            <button class="btn btn-primary" id="btn-save-prompt">保存提示词</button>
+            <button class="btn btn-ghost btn-sm" id="btn-reset-prompt">恢复默认</button>
+            <span class="char-count" id="prompt-count">0 / 2000</span>
+          </div>
+          <p class="msg" id="prompt-msg"></p>
+        </div>
+        <div class="card-note">提示词与检索结果、技能说明一起组装进每次提问的系统提示，学生提问时实时读取。</div>
+      </section>
+
+      <div class="settings-grid">
+
+        <!-- 技能列表 -->
+        <section class="card">
+          <div class="card-head">
+            <div class="card-title">解题引导技能</div>
+            <button class="btn btn-accent btn-sm" id="btn-new-skill">＋ 新建技能</button>
+          </div>
+          <div class="card-body">
+            <table class="skill-table">
+              <thead>
+                <tr><th>名称</th><th>适用条件</th><th>状态</th><th>操作</th></tr>
+              </thead>
+              <tbody id="skill-rows">
+                <tr><td colspan="4" class="empty" style="padding:24px;">加载中…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-note">技能按「适用条件」中的触发词命中问题后生效；没有任何触发词的技能作为兜底。</div>
+        </section>
+
+        <!-- 技能编辑器 -->
+        <section class="card">
+          <div class="card-head">
+            <div class="card-title" id="editor-title">新建技能</div>
+            <button class="btn btn-ghost btn-sm" id="btn-cancel-edit" style="display:none;">取消编辑</button>
+          </div>
+          <div class="card-body">
+            <p class="tpl-hint">名称：一句话说明这个技能管什么
+适用条件：逗号分隔的触发词
+工具：knowledge_search（还可写「工具名@服务器名」引用 MCP 工具，
+　　　如 formula_hint@campus-tools，需先在 MCP 页连接服务器）
+资料：科目或留空
+启用：是 或 否
+（空行）
+技能说明：先让学生复述题目……</p>
+            <div class="field">
+              <span>技能文件（头部「键：值」+ 一个空行 + 说明）</span>
+              <textarea class="input skill-file" id="skill-source" rows="12"
+                        placeholder="名称：&#10;适用条件：&#10;工具：knowledge_search&#10;资料：&#10;启用：是&#10;&#10;技能说明……（工具栏可写 工具名@服务器名，如 formula_hint@campus-tools）"></textarea>
+            </div>
+            <div class="toolbar" style="margin-top:12px;">
+              <button class="btn btn-primary" id="btn-save-skill">保存技能</button>
+              <button class="btn btn-outline btn-sm" id="btn-upload-skill" type="button">上传技能文件</button>
+              <input type="file" id="skill-file-input" accept=".md,.txt" style="display:none">
+              <span class="char-count" id="skill-count">0 字符</span>
+            </div>
+            <p class="msg" id="skill-msg"></p>
+          </div>
+          <div class="card-note">同班技能名称不可重复；删除后立即对学生生效。也可直接上传 .md / .txt 技能文件（≤64KB），上传成功即创建同款技能。</div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+<script>
+(function () {
+  "use strict";
+  var CSRF = document.getElementById("csrf-token").value;
+  var skills = [];
+  var editingId = null;
+
+  var rowsEl = document.getElementById("skill-rows");
+  var msgEl = document.getElementById("skill-msg");
+  var sourceEl = document.getElementById("skill-source");
+  var promptEl = document.getElementById("prompt-body");
+  var promptMsg = document.getElementById("prompt-msg");
+  var promptCount = document.getElementById("prompt-count");
+  var skillCount = document.getElementById("skill-count");
+
+  function api(method, url, body) {
+    var opts = { method: method, headers: { "X-CSRF-Token": CSRF }, credentials: "same-origin" };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(url, opts).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        return { status: resp.status, data: data };
+      });
+    });
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function say(el, text, ok) {
+    el.textContent = text || "";
+    el.className = "msg " + (ok ? "msg-ok" : "msg-err");
+  }
+
+  // ---------------------------------------------------------------- 提示词
+  function loadPrompt() {
+    return api("GET", "/api/prompt").then(function (r) {
+      if (r.status !== 200) { say(promptMsg, "提示词加载失败", false); return; }
+      promptEl.value = r.data.body || "";
+      countPrompt();
+    });
+  }
+  function countPrompt() {
+    promptCount.textContent = promptEl.value.length + " / 2000";
+    document.getElementById("stat-prompt").textContent = promptEl.value.length;
+  }
+  promptEl.addEventListener("input", countPrompt);
+
+  document.getElementById("btn-save-prompt").onclick = function () {
+    var body = promptEl.value.trim();
+    if (!body) { say(promptMsg, "提示词不能为空", false); return; }
+    api("PUT", "/api/prompt", { body: body }).then(function (r) {
+      if (r.status === 200) { say(promptMsg, "已保存，学生提问立即生效", true); loadPrompt(); }
+      else say(promptMsg, (r.data.error && r.data.error.message) || "保存失败", false);
+    });
+  };
+  document.getElementById("btn-reset-prompt").onclick = function () {
+    if (!confirm("恢复为系统默认提示词？当前修改会被覆盖。")) return;
+    var dflt = "你是本班解题助手。先确认学生身份与班级，再开始解题；" +
+      "只给思路和第一步，不得直接给出最终答案；学生卡住时给下一步提示。";
+    api("PUT", "/api/prompt", { body: dflt }).then(function (r) {
+      if (r.status === 200) { say(promptMsg, "已恢复默认提示词", true); loadPrompt(); }
+      else say(promptMsg, "恢复失败", false);
+    });
+  };
+
+  // ---------------------------------------------------------------- 技能
+  function loadSkills() {
+    return api("GET", "/api/skills").then(function (r) {
+      if (r.status !== 200) { say(msgEl, "技能列表加载失败", false); return; }
+      skills = r.data.skills || [];
+      document.getElementById("stat-skills").textContent = skills.length;
+      renderSkills();
+    });
+  }
+  function renderSkills() {
+    if (!skills.length) {
+      rowsEl.innerHTML = '<tr><td colspan="4" class="empty" style="padding:24px;">' +
+        '<span class="empty-ic">🧭</span>还没有技能，点「新建技能」添加第一条解题引导。</td></tr>';
+      return;
+    }
+    rowsEl.innerHTML = "";
+    skills.forEach(function (s) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="name">' + esc(s.name) + '<div class="mono">' + esc(s.subject || "通用") + "</div></td>" +
+        '<td class="mono">' + esc(s.trigger || "（兜底）") + "</td>" +
+        '<td><span class="badge ' + (s.enabled ? "badge-ok" : "badge-neutral") + '">' +
+          (s.enabled ? "启用" : "停用") + "</span></td>";
+      var actions = document.createElement("td");
+      actions.className = "skill-actions";
+      var editBtn = document.createElement("button");
+      editBtn.className = "btn btn-outline btn-sm";
+      editBtn.textContent = "编辑";
+      editBtn.onclick = function () { startEdit(s); };
+      var toggleBtn = document.createElement("button");
+      toggleBtn.className = "btn btn-ghost btn-sm";
+      toggleBtn.textContent = s.enabled ? "停用" : "启用";
+      toggleBtn.onclick = function () { toggleSkill(s); };
+      var delBtn = document.createElement("button");
+      delBtn.className = "btn btn-danger btn-sm";
+      delBtn.textContent = "删除";
+      delBtn.onclick = function () { deleteSkill(s); };
+      actions.appendChild(editBtn);
+      actions.appendChild(toggleBtn);
+      actions.appendChild(delBtn);
+      tr.appendChild(actions);
+      rowsEl.appendChild(tr);
+    });
+  }
+
+  function startEdit(s) {
+    editingId = s.id;
+    sourceEl.value = s.source || "";
+    countSkill();
+    document.getElementById("editor-title").textContent = "编辑技能";
+    document.getElementById("btn-cancel-edit").style.display = "";
+    say(msgEl, "", true);
+    sourceEl.focus();
+  }
+  function cancelEdit() {
+    editingId = null;
+    sourceEl.value = "";
+    countSkill();
+    document.getElementById("editor-title").textContent = "新建技能";
+    document.getElementById("btn-cancel-edit").style.display = "none";
+  }
+  function countSkill() {
+    skillCount.textContent = sourceEl.value.length + " 字符";
+  }
+  sourceEl.addEventListener("input", countSkill);
+  document.getElementById("btn-cancel-edit").onclick = cancelEdit;
+  document.getElementById("btn-new-skill").onclick = function () {
+    cancelEdit();
+    sourceEl.focus();
+  };
+
+  document.getElementById("btn-save-skill").onclick = function () {
+    var source = sourceEl.value;
+    if (!source.trim()) { say(msgEl, "技能文件不能为空", false); return; }
+    var method = editingId ? "PUT" : "POST";
+    var url = editingId ? "/api/skills/" + editingId : "/api/skills";
+    api(method, url, { source: source }).then(function (r) {
+      if (r.status === 200 || r.status === 201) {
+        say(msgEl, editingId ? "已更新" : "已创建，学生提问立即生效", true);
+        cancelEdit();
+        loadSkills();
+      } else {
+        say(msgEl, (r.data.error && r.data.error.message) || "保存失败", false);
+      }
+    });
+  };
+
+  // ------------------------------------------------------- 上传技能文件
+  var fileInput = document.getElementById("skill-file-input");
+  document.getElementById("btn-upload-skill").onclick = function () { fileInput.click(); };
+  fileInput.addEventListener("change", function () {
+    var file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    if (!/\.(md|txt)$/i.test(file.name)) {
+      say(msgEl, "仅支持 .md 与 .txt 技能文件", false);
+      fileInput.value = "";
+      return;
+    }
+    var form = new FormData();
+    form.append("file", file);
+    say(msgEl, "正在上传「" + file.name + "」…", true);
+    fetch("/api/skills/upload", {
+      method: "POST",
+      headers: { "X-CSRF-Token": CSRF },
+      credentials: "same-origin",
+      body: form
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        return { status: resp.status, data: data };
+      });
+    }).then(function (r) {
+      if (r.status === 201) {
+        say(msgEl, "已上传并创建技能「" + (r.data.name || file.name) + "」，学生提问立即生效", true);
+        cancelEdit();
+        loadSkills();
+      } else {
+        say(msgEl, (r.data.error && r.data.error.message) || "上传失败", false);
+      }
+    }).catch(function () {
+      say(msgEl, "网络错误，上传失败", false);
+    }).then(function () {
+      fileInput.value = "";
+    });
+  });
+
+  function toggleSkill(s) {
+    var source = (s.source || "").replace("启用：是", "启用：否").replace("启用：否", "启用：是");
+    if (s.enabled && source === s.source) {
+      source = s.source.replace(/启用：.*/, "启用：否");
+    } else if (!s.enabled && source === s.source) {
+      source = s.source.replace(/启用：.*/, "启用：是");
+    }
+    api("PUT", "/api/skills/" + s.id, { source: source }).then(function (r) {
+      if (r.status === 200) loadSkills();
+      else say(msgEl, "更新启用状态失败", false);
+    });
+  }
+  function deleteSkill(s) {
+    if (!confirm("删除技能「" + s.name + "」？删除后立即生效。")) return;
+    api("DELETE", "/api/skills/" + s.id).then(function (r) {
+      if (r.status === 204) { say(msgEl, "已删除", true); loadSkills(); }
+      else say(msgEl, "删除失败", false);
+    });
+  }
+
+  loadPrompt();
+  loadSkills();
+})();
+</script>
+{% endblock %}
