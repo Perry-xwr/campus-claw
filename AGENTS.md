@@ -1,32 +1,27 @@
-# 班级答疑广场：仓库规则
+# CampusClaw 仓库规则
 
-按组长授权及当前OpenSpec变更范围开发；骨架限制仅在执行该骨架change时生效，后续已授权功能change可实施五模块；`2026-10-28-project-skeleton` 只允许最小骨架，不实现五模块业务。
+本仓库当前实现是 Python 3.11 / Flask 3.1 / SQLite 的既有课程项目，包含原生 Jinja HTML、JSON/SSE API、LangChain、可选 Qdrant、uv 锁依赖及独立 FastMCP 服务。实现结构和启动方式以代码与[当前实现基线](docs/implementation-baseline.md)为准。
 
-## 必须读取的入口
+## 规则入口
 
-- 产品范围：[功能说明](docs/requirements/project-requirements.md)。实现以对应change的proposal/design/spec/tasks为准；冲突先修订文档并记录原因。
-- 前端、页面与交互：读取 [product](docs/standards/product.md)。
-- `cmd/`、`internal/`、API与配置：读取 [backend](docs/standards/backend.md)。
-- 所有路径：读取 [security](docs/standards/security.md)；密钥不入代码、日志、镜像或Git。
-- 测试、脚本及任何行为变更：读取 [testing](docs/standards/testing.md)。
-- Docker、Compose、部署、README：读取 [operations](docs/standards/operations.md)。
-- 验收和分工：读取 [team-handoff](docs/lesson-07/team-handoff.md) 和 [acceptance-checklist](docs/lesson-07/acceptance-checklist.md)。
+- 当前实现差异和NOT_RUN证据：[当前实现基线](docs/implementation-baseline.md)。
+- 产品与用户流程：docs/requirements/project-requirements.md、functional-spec.md、roles-and-workflows.md、acceptance-scenarios.md、integration-requirements.md。
+- Flask/Python/SQLite：docs/standards/backend.md。
+- Cookie/Bearer、CSRF、班级隔离与密钥：docs/standards/security.md。
+- 页面与模板：docs/standards/product.md。
+- LangChain、Qdrant、FAQ、MCP：docs/standards/ai.md。
+- 验收：docs/standards/testing.md。
+- uv、Compose、部署：docs/standards/operations.md。
+- 执行变更前检查对应OpenSpec范围。`2026-10-28-project-skeleton`是历史独立Go/React/MySQL骨架方案，不适用于当前运行代码，也未因当前Python代码存在而视为完成或验收通过。新业务变更须独立定义并遵循本仓库现架构。
 
 ## 强制约束
 
-1. handler→application→domain/ports；adapter实现port，cmd装配。SQL只在数据适配层，数据库事务内不得调用外部网络。
-2. 对每项资源按可信身份和class_id授权；跨班与不存在404；未知筛选400。不得依赖UI隐藏按钮判权。
-3. 写入必须明确幂等/版本冲突行为；不得静默覆盖并发修改。AI引用必须可验证，未经教师确认不得发布可信FAQ。
-4. 配置外置、缺失先退出；health免认证且无敏感详情；请求带request ID，日志单行JSON。
-5. 只以实际命令输出记录验证结果；未运行写NOT_RUN，失败不删断言、不放宽门禁。所有任务勾选需有证据。
-6. Git提交、合并、push、归档及tag须按组长授权和验收门禁执行，不得未经授权操作。
+1. 延续现有分层：`app.py`装配Flask，`campusclaw/views/`处理HTTP，业务服务与SQLite数据访问位于`campusclaw/`模块，模板位于`campusclaw/templates/`；按职责组织，不为满足历史目录名而重建。
+2. 所有资源服务端按可信会话用户、角色和班级授权；跨班与不存在按需求统一404。Cookie写请求校验CSRF，Bearer只按既有API契约豁免。UI隐藏不构成授权。
+3. SQLite使用参数绑定和明确事务边界；事务内不执行Qdrant、模型或MCP网络调用。写入需明确幂等和并发冲突语义。
+4. AI证据须来自本次检索结果且班级/来源有效；无依据须拒答或明确降级；FAQ须教师确认后发布。工具调用沿现有受授权服务层。
+5. 配置外置。开发演示默认值仅限本机；部署必须严格配置真实密钥/口令。日志不得泄露凭据或用户正文。
+6. 只记录实际执行结果；未执行标NOT_RUN，发现实现缺口列待修复，不能改低需求或验收线。
+7. Git提交、合并、推送、归档和标签按组长授权及仓库门禁执行。
 
-上面的路径作用域是要求代理主动读取的规则索引，不是虚构的glob自动加载功能。新会话需在本目录/未来仓库根启动，核对是否有上层或同层AGENTS.override.md覆盖，并做真实规则生效实验。
-
-- AI/RAG、Prompt及FAQ相关变更：读取 [AI应用规范](docs/standards/ai.md)；仅在未来对应变更生效，不扩大当前骨架任务。
-
-
-## 后续业务规范入口
-
-未来五模块开发必须阅读[详细需求](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[验收场景及追溯](docs/requirements/acceptance-scenarios.md)、[现有系统集成要求](docs/requirements/integration-requirements.md)。
-组员优先复用自己的现有系统，具体技术栈/API/表结构由开发者确定并登记；后续集成方式以integration-requirements为准，早期独立部署建议不强制沿用。骨架OpenSpec仍仅适用于骨架，五模块通过后续独立功能变更实施。本轮文档补充不代表业务开发完成。组长旧个人项目不在修改范围。
+Codex应先核对所在分支和`git status`，再编辑。任何适配文档若与代码不符，记录差异，不修改业务代码来迎合文档任务。
