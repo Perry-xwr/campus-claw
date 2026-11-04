@@ -1,13 +1,13 @@
-# 测试规范
+# 测试规范（pytest/Flask/SQLite）
 
-适用本change全部Scenario。B主责、A修复实现、组长维护口径。目的：验证可观测行为，而不是仅验证函数被调用。
+本规范不声称仓库有完整pytest套件。README当前列出的入口为`uv run python scripts/selfcheck.py`，它启动临时应用、验证health、四账号登录跳转及材料可见数量/班级隔离；不覆盖全部业务需求。自检当前尚未执行，本规范适配任务不运行项目。
 
-|规则|开发动作与具体约束|检查方法|失败判定与处置|
+|规则|约束|检查方式|失败判定|
 |---|---|---|---|
-|TST-01 追溯|每个`SC-SK-nn-mm`对应`T-SK-nn-mm`；tasks显式列Scenario；用例记录正常/异常/边界类别|逐项比对spec、tasks、测试名和summary|缺场景/无需求测试需说明，否则失败；补测试而不删Scenario|
-|TST-02 断言|核对HTTP、code、data、request ID、退出码、端口及副作用；覆盖四类失败|参数非法、诊断无令牌、未知路径、MySQL断连；测试配置边界及日志脱敏|只断言非空/200、失败被当成功即失败，修断言|
-|TST-03 隔离|单测使用替身且断网可运行；集成使用独立DB和Compose项目run_id；清理只针对本run|运行两轮并比对残留；随机顺序单测|依赖执行顺序、删开发数据、用生产数据即失败，停止清理并修隔离|
-|TST-04 一键门禁|B实现`python scripts/check.py --suite skeleton`；包含格式/分层、单测、隔离容器集成与Scenario追溯；任一子项失败总退出非零|A实现后实际执行命令，保留退出码和原输出|脚本不存在/子命令失败却退出0即不通过；当前尚未实现，NOT_RUN|
-|TST-05 证据|输出reports/skeleton/summary.json与junit.xml；summary含commit、工具版本、各T编号/结果/耗时；人工项单独记录|故意改变ready状态码、确认对应测试变红，再恢复实现|无原始输出/未运行标PASS/跳过当成功即失败，纠正记录并重新执行|
+|TST-01 追溯|保留`docs/requirements/acceptance-scenarios.md`内14需求、37场景；每个场景映射测试标识T-<Scenario>。未实现/未执行分别记TODO/NOT_RUN。|B建立追溯表并对照全部FR、SC编号和测试文件/方法。|需求无测试映射、删场景或将未运行填PASS即失败。|
+|TST-02 层次|优先pytest及Flask test_client；路由测HTTP/会话/CSRF/副作用，模块测业务/SQLite事务，少量端到端验证模板主流程。真实外部服务用stub；至少保留真实契约检查。|pytest若有则记录精确命令；现有自检用`uv run python scripts/selfcheck.py`。|只验证路由存在/HTTP200而不验证数据、权限和引用即失败。|
+|TST-03 数据隔离|每测试使用tmp_path独立SQLite、隔离上传目录和测试配置；不触碰data/app.db、uploads或真实Qdrant。固定时钟、清理服务和临时进程。|断言临时路径；连续/乱序执行；检查失败清理。|测试依赖共享个人数据或清理项目数据即失败。|
+|TST-04 一键入口|已存在的基线命令为`uv run python scripts/selfcheck.py`；它不是37场景全量测试，也无已证实JUnit报告。未来新增测试命令时更新README，并令失败非零退出。|实际运行前确认授权；当前仅审阅脚本内容。|把selfcheck说成全量验收、引用不存在`scripts/check.py`或虚构报告即失败。|
+|TST-05 分域验收|Cookie登录+CSRF、Bearer写请求豁免、角色与班隔离需分别测试；AI真引用/无据拒答/MCP工具安全；FAQ索引失败/撤销迟到任务；SSE中断；SQLite锁/提交回滚；health依赖故障。|按37个SC逐条执行，保留环境、命令、状态码、DB/文件副作用和脱敏日志。|关键异常缺失、跨班数据暴露、撤销后重新出现即失败。|
 
-L7自动用例覆盖SK-01…SK-08；SK-09独立机器、SK-10新会话/评审/归档用人工证据，不把人工门禁混成脚本通过。测试入口、依赖安装方法和报告路径必须进README。实现前的本包所有工程测试均NOT_RUN；文档静态检查不能替代OpenSpec strict。
+建议测试放`tests/`并用pytest，但当前仓库文件清单中未见测试目录；不得声称已建立或运行。OpenSpec骨架Scenario与后续14条业务需求/37个Scenario分开追溯。

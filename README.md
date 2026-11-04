@@ -16,6 +16,10 @@
 
 工程启动和测试命令见 [实现说明](docs/IMPLEMENTATION.md)（`uv sync` → `uv run python app.py`）。
 
+## 当前 Python 实现与工程规范
+
+仓库当前代码采用 Python/Flask/SQLite、原生模板、uv及Docker Compose，真实架构、启动方式和差距见[当前实现基线](docs/implementation-baseline.md)。工程规范按该实现维护；组员无须为早期骨架方案改写技术栈。`openspec/changes/2026-10-28-project-skeleton/`保留为历史Go/React/MySQL骨架规划，strict及原骨架验收仍为NOT_RUN，Python实现不构成其验收通过。
+
 ## 后续业务规范入口
 
 未来五模块开发必须阅读[详细需求](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[验收场景及追溯](docs/requirements/acceptance-scenarios.md)、[现有系统集成要求](docs/requirements/integration-requirements.md)。
