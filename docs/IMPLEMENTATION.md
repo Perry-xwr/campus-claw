@@ -126,7 +126,7 @@ pwsh -File scripts\start-all.ps1 -NoDocker   # 不起 Qdrant 与 worker，只用
 | `CAMPUSCLAW_TUTOR_STUB` | 置 `1` 换成固定响应模型替身 | 关闭 |
 | `MCP_AUTH_TOKEN` | 自建 MCP 服务的 Bearer 令牌，两侧必须一致 | mcp-server 拒绝启动 |
 
-两组模型配置各管一条链路、互不影响，`base_url` 都要以 `/v1` 结尾，三个变量同时非空才生效。示例：
+两组模型配置各管一条链路、互不影响。配置的 `base_url` 应符合所选 OpenAI 兼容服务及客户端的接口约定；项目不强制所有服务 URL 都以 `/v1` 结尾。每组的 URL、模型名和 API key 同时非空才启用对应链路。示例：
 
 ```
 CHAT_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
@@ -138,7 +138,7 @@ EMBEDDING_MODEL=BAAI/bge-m3
 EMBEDDING_API_KEY=sk-...
 ```
 
-口令只在空库初始化时写入，**建库后再改环境变量无效**，需要清掉 `data/` 重新初始化。
+口令只在空库初始化时写入，**建库后再改环境变量不会自动更新既有账号**。不要删除 `data/` 来改口令，这会删除数据库及其业务数据。应使用项目支持的账号管理流程更新口令；若当前版本未提供该流程，先在受控备份和维护方案下处理，不要直接清空数据目录。
 
 ---
 
@@ -244,17 +244,34 @@ uv run python scripts/selfcheck.py
 
 不改动项目数据：在临时目录起一个服务，依次登录四个账号，核对健康检查、登录跳转、材料数与班级隔离，跑完自动清理，退出码 0 表示环境可用。换机器、换 Python 版本、升级依赖之后先跑它。
 
+### 异步批改
+
+`POST /api/submissions` 接收作业并返回 `202` 与任务 ID；通过 `GET /api/tasks/{task_id}` 查询状态。独立消费者可常驻运行，或使用 `--once` 执行当前可领取队列：
+
+```bash
+uv run python -m campusclaw.task_worker
+uv run python -m campusclaw.task_worker --once
+```
+
+三项隔离判据使用本地确定性 stub，不需要模型 API，也不操作项目 `data/`：
+
+```bash
+uv run python scripts/acceptance_async.py
+```
+
+Windows 可运行 `pwsh -File scripts/check-all.ps1 -Mode async`。该脚本验证异步队列的提交响应、消费者恢复和重复投递幂等性，不替代 `docs/requirements/acceptance-scenarios.md` 中的 37 个业务场景。历史运行输出保存在 `reports/evidence/async-acceptance.json`，该文件记录一次具体运行结果，不会随脚本运行自动覆盖，除非显式传入 `--out`。
+
 ## 常见问题
 
 **Docker 报 `failed to fetch oauth token`。** 不是代码问题，是 Docker 守护进程拉不到 `python:3.12-slim`。在 Docker Desktop → Settings → Docker Engine 里配 `registry-mirrors`，或在 Resources → Proxies 里给 Docker 配本机代理，Apply & restart。实在不行就用方式一/二本地跑，关键词检索不依赖 Docker。
 
-**配了模型但检索还是失败。** 检查三件事：`base_url` 是否以 `/v1` 结尾；三个变量是否都非空；索引是否真的建好了（`index-status` 的 `ready`）。换嵌入模型还会带来维度变化，Qdrant 会报 `vector dimension differs`，此时换一个 `QDRANT_COLLECTION` 名字再重建。
+**配了模型但检索还是失败。** 检查 URL 是否符合所选兼容服务要求、该组 URL/模型/key 是否均配置，以及索引是否已就绪（`index-status` 的 `ready`）。换嵌入模型可能带来向量维度变化，Qdrant 会报 `vector dimension differs`；确认旧集合数据处置方案后再配置新的 `QDRANT_COLLECTION` 并重建索引。
 
 **零模型环境下演示答疑 FAQ。** 发布 FAQ 后本班检索要等 worker 建索引；时间紧就重启一次应用，启动时会补建关键词切片。
 
 **流式回答变成一次性整段到达。** 中间有会缓冲的代理。响应已带 `X-Accel-Buffering: no`，还需在 nginx 侧关掉缓冲。
 
-**改了 `SEED_*_PASSWORD` 但口令没变。** 口令只在空库初始化时写入。要改就删掉 `data/` 重新初始化。
+**改了 `SEED_*_PASSWORD` 但口令没变。** 口令只在空库初始化时写入，已有账号不会因环境变量变化而更新。不要删除 `data/`；请使用账号管理流程或经过备份与审核的数据维护步骤修改。
 
 **端口 8080 被占。** `CAMPUSCLAW_PORT=8090 docker compose up -d`，或 `pwsh -File scripts/start-all.ps1 -AppPort 8099 -McpPort 8091`。
 
