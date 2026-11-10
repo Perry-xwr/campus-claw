@@ -4,6 +4,7 @@
 - **身份与数据**：班级 A、班级 B；`teacher_a`、`student_a1`、`student_b1`、`teacher_b`（预置账号全部可登录）；两班各一份示例讲义（正文分别含 `A_ONLY_SEED` / `B_ONLY_SEED`）。
 - **复现入口**：`pwsh -File scripts/check-all.ps1`（或 `make check`）；七项记录由 `uv run python scripts/acceptance_security.py --out reports/evidence/security-precheck.json` 生成，命令与原始输出见 `reports/evidence/`。
 - **分工约定**：权限类 SEC-01～SEC-04 与资产类 SEC-05～SEC-07 分开复核，结果合并进本文件；SEC-08 素材共同准备。**本课只记录现象，不提前修复**；密钥真实明文命中是唯一例外。
+- **编号范围说明**：本报告的 SEC-05 指密钥明文扫描、SEC-06 指依赖漏洞基线、SEC-07 指 MCP 审计日志字段检查；此编号属于本课七项自查记录。OpenSpec 的安全预检规格采用其自身要求编号，两者不应仅凭 SEC 前缀视为同一条目。保留原始编号和历史结论。
 - **凭据说明**：下列命令使用仓库公开的内置演示口令（仅本机演示）；Bearer 令牌均为运行时动态签发，不写死、不落盘。
 
 ## 受保护接口清单（不带令牌应得 401）
