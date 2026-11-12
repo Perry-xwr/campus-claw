@@ -33,12 +33,43 @@ uv run python app.py
 
 当前 `main` 包含可运行的 Python/Flask 实现及异步批改模块。已归档的异步三项判据和安全自查证据只适用于各自记录的测试范围与批次；14 条业务需求、37 个验收场景仍须逐项按其状态执行，不能由局部验收推定全部通过。开发基线与差距见[当前实现基线](docs/implementation-baseline.md)。
 
+## 验收与测试
+
+六项门禁覆盖安全、异步、注入、审计、观测与容器配置，任一项判红即以非零退出码结束，同一份清单同时用于本地自检与 CI：
+
+```bash
+pwsh -File scripts/check-all.ps1   # Windows 入口
+make check                         # 需 GNU make，等价
+```
+
+| # | 门禁 | 检查内容 |
+| --- | --- | --- |
+| 1 | `security` | SEC-05 密钥扫描 + SEC-06 依赖漏洞基线 |
+| 2 | `async` | 第 8 课三条异步判据复现 |
+| 3 | `apitest` | 第 9 课注入三件套反例（SQL / XSS / CSRF），20 条用例 |
+| 4 | `audit` | SEC-07 审计日志七列结构断言与关联键断言 |
+| 5 | `observe` | 第 10 课运行观测 5 条告警规则，`critical` 即红 |
+| 6 | `compose` | 容器配置静态校验 11 项，不需要 Docker |
+
+推送与 PR 由 [`.github/workflows/check.yml`](.github/workflows/check.yml) 执行同一份清单，证据以 `check-evidence` 产物归档；运行结果见 [Actions](https://github.com/Perry-xwr/campus-claw/actions) 与 [CI 运行记录](reports/evidence/ci-first-run.md)。
+
+逐条判据、缺陷修复过程与红绿验证写在[验收与测试流程报告](reports/验收与测试流程报告-2026-11-12.md)。当前结论：**第 9 课 5 条判据全部通过；第 10 课 5 条通过、1 条（真实用户试用）未执行**——没有真实用户，不拿自测冒充。
+
+门禁的价值不在「有一次通过」，而在**退出码随代码状态变化**：每一项都先构造坏提交确认退出码为 1，再修复确认回 0。只留一次绿说明不了任何问题，因为命令可能根本没在检查。仓库里两个已修缺陷都是这类情况——没有样本时直接把判定记为通过，以及 CI 上因缺数据库导致审计断言与观测规则一条都没执行、步骤却显示成功。
+
+以上覆盖的是第 9–10 课的工程判据，**不等同于 14 条业务需求与 37 个验收场景全部通过**，后者逐项状态见[验收场景清单](docs/requirements/acceptance-scenarios.md)。
+
 ## 文档导航
 
 - **运行与架构**：[实现说明](docs/IMPLEMENTATION.md)、[当前实现基线](docs/implementation-baseline.md)、[工程规范](docs/standards/backend.md)
 - **产品与需求**：[项目需求](docs/requirements/project-requirements.md)、[功能规格](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[14 项需求与 37 个场景](docs/requirements/acceptance-scenarios.md)、[集成要求](docs/requirements/integration-requirements.md)
 - **质量与安全**：[测试规范](docs/standards/testing.md)、[安全规范](docs/standards/security.md)、[AI 规范](docs/standards/ai.md)、[产品规范](docs/standards/product.md)、[运维规范](docs/standards/operations.md)、[仓库协作规则](AGENTS.md)
-- **验证记录**：[异步演示记录](reports/demo-walkthrough.md)、[安全自查](reports/security-precheck.md)、[并发风险记录](reports/risk-concurrency.md)、[事务风险记录](reports/risk-transaction.md)、[权限风险记录](reports/risk-authz.md)
+- **验收与测试**：
+  - 报告：[验收与测试流程报告（第 9–10 课）](reports/验收与测试流程报告-2026-11-12.md)、[验收测试报告（2026-11-10，基线 475eb45）](reports/verification/验收测试报告-2026-11-10.md)
+  - 运行证据：[CI 运行记录](reports/evidence/ci-first-run.md)、[门禁红绿证据（含四项门禁时期原文）](reports/gate-red-green.md)、[容器实跑记录](reports/evidence/docker-acceptance.md)
+  - 分项：[压测基线](reports/bench.md)、[审计日志回查](reports/audit-recheck.md)、[第 8 课异步演示记录](reports/demo-walkthrough.md)
+- **安全与风险记录**：[安全自查](reports/security-precheck.md)、[安全修复记录](reports/security-fix-log.md)、[并发风险](reports/risk-concurrency.md)、[事务风险](reports/risk-transaction.md)、[权限风险](reports/risk-authz.md)
+- **用户试用**：[试用模板](reports/user-trial-template.md)、[批次记录 2026-11-12](reports/user-trial-record.md)
 - **历史设计**：[第 7 课团队交接](docs/lesson-07/team-handoff.md)、[历史骨架 OpenSpec](openspec/changes/2026-10-28-project-skeleton/proposal.md)（Go/React/MySQL 规划，不是当前架构或验收结果）
 
 历史课程材料和原始报告用于追溯背景与证据，保留其原始范围和结论。
