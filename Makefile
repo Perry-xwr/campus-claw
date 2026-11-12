@@ -37,7 +37,8 @@ check-audit:
 check-observe:
 	$(PYTHON) scripts/check_observe.py --db $(OBSERVE_DB) --out $(EVIDENCE)/observe.json
 
-check-compose:/n/t$(PYTHON) scripts/check_compose.py --out $(EVIDENCE)/compose-static.json
+check-compose:
+	$(PYTHON) scripts/check_compose.py --out $(EVIDENCE)/compose-static.json
 
 check-bench:
 	$(PYTHON) scripts/bench.py --vus $(or $(VUS),20) --duration $(or $(DURATION),60)

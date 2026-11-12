@@ -16,7 +16,9 @@ dependencies = [
     "gunicorn==23.0.0; sys_platform != 'win32'",
     "langchain-openai==1.4.1",
     "langchain-text-splitters==1.1.3",
-    "qdrant-client==1.19.1",
+    # 与服务端镜像 qdrant/qdrant:v1.15.5 同次版本（客户端要求次版本差 ≤1），
+    # 由 scripts/check_compose.py 的 qdrant.version 项静态把关。
+    "qdrant-client==1.15.1",
     # 第 6 课：MCP 与工具接入。mcp 供 mcp-server（FastMCP），
     # langchain-mcp-adapters 供主机侧作传输客户端，uvicorn 运行 mcp-server。
     # 三者版本敏感（FastMCP 的 stateless_http / json_response 行为随版本变化），勿随意放宽。
@@ -28,6 +30,15 @@ dependencies = [
 [tool.uv]
 # 项目本身不作为可安装包发布：app.py / campusclaw 包 / mcp-server 均以源码目录直跑。
 package = false
+
+[dependency-groups]
+# 门禁脚本 scripts/check_compose.py 直接 import yaml 解析 docker-compose.yml。
+# 此前它只是被别的包顺带装进来的传递依赖：一旦上游把这个依赖去掉，
+# 门禁会在 CI 上以「缺 pyyaml」的形式红，而报错和真正的配置错误混在一起。
+# 显式声明为开发依赖，不进运行时镜像（requirements.txt 不含它）。
+dev = [
+    "PyYAML==6.0.3",
+]
 
 # 迁移到 uv 时（2026-11-04）为「依赖树与既有验收环境一致」而加的传递依赖约束。
 # 这些是 anaconda langdev 环境中实测通过的版本；不新增依赖，只锁定解析结果。

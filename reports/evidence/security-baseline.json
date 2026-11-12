@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T13:34:46+00:00",
+  "generated_at": "2026-11-12T13:50:11+00:00",
   "sec05": {
     "patterns": [
       "OpenAI 兼容 API 密钥",
@@ -63,7 +63,7 @@
       },
       {
         "name": "qdrant-client",
-        "version": "1.19.1",
+        "version": "1.15.1",
         "source": "requirements.txt"
       },
       {
@@ -109,7 +109,7 @@
       },
       {
         "name": "qdrant-client",
-        "version": "1.19.1"
+        "version": "1.15.1"
       },
       {
         "name": "uvicorn",

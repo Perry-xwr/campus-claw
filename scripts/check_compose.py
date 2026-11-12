@@ -252,6 +252,33 @@ def check_all() -> Checker:
         chk.add("python.version", "镜像 Python 版本符合 requires-python", True,
                 "未使用 python 官方镜像或无 requires-python，跳过")
 
+    # 10. Qdrant 客户端与服务端镜像的版本跨度必须落在 1 个次版本以内。
+    #     客户端连接时会自己做同一判定，跨度过大就打「incompatible」告警：
+    #     主版本必须一致、次版本差不得超过 1。这条一旦违反，配置和语法都正常，
+    #     只有运行到向量检索才暴露，故提前静态挡掉。
+    client_m = re.search(r"^qdrant-client\s*==\s*(\d+)\.(\d+)\.(\d+)",
+                         requirements, re.MULTILINE)
+    image_m = None
+    for cfg in services.values():
+        m2 = re.match(r"qdrant/qdrant:v?(\d+)\.(\d+)\.(\d+)", str((cfg or {}).get("image") or ""))
+        if m2:
+            image_m = m2
+            break
+    if client_m and image_m:
+        cli = tuple(int(x) for x in client_m.groups())
+        srv = tuple(int(x) for x in image_m.groups())
+        gap = abs(cli[1] - srv[1])
+        gap_ok = cli[0] == srv[0] and gap <= 1
+        note = (f"客户端 {cli[0]}.{cli[1]}.{cli[2]}；服务端 {srv[0]}.{srv[1]}.{srv[2]}"
+                if gap_ok else
+                f"客户端 {cli[0]}.{cli[1]}.{cli[2]}；服务端 {srv[0]}.{srv[1]}.{srv[2]}，"
+                f"次版本相差 {gap}（要求 ≤1）")
+        chk.add("qdrant.version", "Qdrant 客户端与服务端版本相容", gap_ok, note,
+                "把 qdrant-client 钉到与服务端镜像同次版本，二者跨度不超过 1")
+    else:
+        chk.add("qdrant.version", "Qdrant 客户端与服务端版本相容", True,
+                "未同时声明客户端版本与服务端镜像 tag，跳过")
+
     return chk
 
 

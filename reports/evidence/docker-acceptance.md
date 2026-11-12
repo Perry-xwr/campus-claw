@@ -111,7 +111,7 @@ docker compose up -d
 
 | 编号 | 问题 | 证据 | 影响 | 建议 |
 | --- | --- | --- | --- | --- |
-| DEF-06 | Qdrant 客户端与服务端小版本跨度过大 | worker 日志：`Qdrant client version 1.19.1 is incompatible with server version 1.15.5` | 当前仅告警，基础读写正常；跨多个小版本后行为无保证 | 二选一：镜像升到与客户端同小版本，或把 `qdrant-client` 降到 1.16.x（小版本差 ≤1）。本轮未改：镜像仓库当时不可达，无法验证新版本可用性 |
+| DEF-06 | Qdrant 客户端与服务端小版本跨度过大 | worker 日志：`Qdrant client version 1.19.1 is incompatible with server version 1.15.5` | 当时仅告警，基础读写正常；跨多个小版本后行为无保证 | **已修**：镜像仓库始终不可达，改从客户端侧收敛（`qdrant-client 1.19.1 → 1.15.1`，与服务端 1.15.5 同次版本），并把版本跨度做成静态校验第 11 项。详见 `def06-qdrant-version.md` |
 | — | `mcp` 未配令牌时 fail-closed | 无令牌启动 → `exit 2`，日志「启动失败：缺少环境变量 MCP_AUTH_TOKEN」 | 属安全设计，非缺陷 | 已把 `restart: unless-stopped` 改为 `on-failure:3`：原配置下 90 秒内重启 12 次刷屏，现在有限次后停在 `Exited(2)`，可直接看出是「没配令牌」 |
 
 ## 九、复现命令（照抄即可）

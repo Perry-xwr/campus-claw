@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T13:34:55+00:00",
+  "generated_at": "2026-11-12T13:50:19+00:00",
   "environment": {
     "python": "3.11.18",
     "home": "<隔离临时目录，运行后清理>",
@@ -13,11 +13,11 @@
       "name": "请求不再等待执行",
       "operation": "消费者停止状态下连续提交 20 次，逐次记录提交响应时间；随后启动消费者一次性执行完 20 条任务测单次执行耗时",
       "observable": {
-        "submit_p95_ms": 36.19,
-        "submit_min_ms": 20.19,
-        "submit_max_ms": 36.76,
-        "one_execution_ms": 265.1,
-        "ratio": 7.3,
+        "submit_p95_ms": 45.47,
+        "submit_min_ms": 21.1,
+        "submit_max_ms": 47.17,
+        "one_execution_ms": 263.65,
+        "ratio": 5.8,
         "all_202_with_task_id_and_no_score": true,
         "worker_exit_code": 0
       },
@@ -30,7 +30,7 @@
       "operation": "消费者未运行时提交并连续查询 3 次；随后启动消费者，轮询直至终态",
       "observable": {
         "submit_status_code": 202,
-        "task_id": "task_9b68a2895e981603",
+        "task_id": "task_c950e0f559442509",
         "before_consumer": [
           {
             "status": "pending",
@@ -55,7 +55,7 @@
         "result_present": true,
         "required_resubmit": false,
         "worker_log_tail": [
-          "2026-11-12 21:35:04,485 INFO task=task_9b68a2895e981603 status=succeeded attempts=1 result_written=True"
+          "2026-11-12 21:50:28,886 INFO task=task_c950e0f559442509 status=succeeded attempts=1 result_written=True"
         ]
       },
       "expected": "提交返回成功、状态停留 pending 且 attempts 不增；消费者启动后自动执行，无需重新提交",
@@ -66,8 +66,8 @@
       "name": "重复不产生重复结果",
       "operation": "同一份提交连发两次；任务完成后把状态放回 pending 模拟代理重复投递，再执行一次消费者",
       "observable": {
-        "first_task_id": "task_052d17126c53f36e",
-        "second_task_id": "task_052d17126c53f36e",
+        "first_task_id": "task_8d0ade5fbf3f03ef",
+        "second_task_id": "task_8d0ade5fbf3f03ef",
         "same_task_id": true,
         "result_rows_for_submission": 1,
         "attempts_after_redelivery": 2,
@@ -83,7 +83,7 @@
     "cross_class_returns": 404,
     "cross_class_expected": 404,
     "observations": {
-      "avg_duration_ms": 272.32,
+      "avg_duration_ms": 264.59,
       "dead": 0,
       "failed": 0,
       "pending": 0,

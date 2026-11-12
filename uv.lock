@@ -2,42 +2,6 @@ version = 1
 revision = 5
 requires-python = "==3.11.*"
 
-[manifest]
-constraints = [
-    { name = "anyio", specifier = "==4.14.2" },
-    { name = "certifi", specifier = "==2026.7.22" },
-    { name = "cffi", specifier = "==2.1.0" },
-    { name = "charset-normalizer", specifier = "==3.4.9" },
-    { name = "cryptography", specifier = "==49.0.0" },
-    { name = "grpcio", specifier = "==1.84.0" },
-    { name = "idna", specifier = "==3.18" },
-    { name = "jiter", specifier = "==0.16.0" },
-    { name = "jsonpatch", specifier = "==1.33" },
-    { name = "jsonpointer", specifier = "==3.1.1" },
-    { name = "langchain-core", specifier = "==1.5.2" },
-    { name = "langchain-protocol", specifier = "==0.0.18" },
-    { name = "langsmith", specifier = "==0.10.11" },
-    { name = "openai", specifier = "==2.50.0" },
-    { name = "orjson", specifier = "==3.11.9" },
-    { name = "packaging", specifier = "==26.2" },
-    { name = "pycparser", specifier = "==3.0" },
-    { name = "pydantic", specifier = "==2.13.4" },
-    { name = "pydantic-settings", specifier = "==2.16.0" },
-    { name = "python-dotenv", specifier = "==1.2.2" },
-    { name = "python-multipart", specifier = "==0.0.32" },
-    { name = "regex", specifier = "==2026.7.19" },
-    { name = "sse-starlette", specifier = "==3.5.0" },
-    { name = "starlette", specifier = "==1.8.0" },
-    { name = "tenacity", specifier = "==9.1.4" },
-    { name = "tiktoken", specifier = "==0.13.0" },
-    { name = "tqdm", specifier = "==4.70.0" },
-    { name = "typing-inspection", specifier = "==0.4.2" },
-    { name = "urllib3", specifier = "==2.7.0" },
-    { name = "uuid-utils", specifier = "==0.17.0" },
-    { name = "websockets", specifier = "==15.0.1" },
-    { name = "xxhash", specifier = "==3.8.1" },
-]
-
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -125,6 +89,45 @@ dependencies = [
     { name = "werkzeug" },
 ]
 
+[package.dev-dependencies]
+constraint-dependencies = [
+    { name = "anyio" },
+    { name = "certifi" },
+    { name = "cffi" },
+    { name = "charset-normalizer" },
+    { name = "cryptography" },
+    { name = "grpcio" },
+    { name = "idna" },
+    { name = "jiter" },
+    { name = "jsonpatch" },
+    { name = "jsonpointer" },
+    { name = "langchain-core" },
+    { name = "langchain-protocol" },
+    { name = "langsmith" },
+    { name = "openai" },
+    { name = "orjson" },
+    { name = "packaging" },
+    { name = "pycparser" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "regex" },
+    { name = "sse-starlette" },
+    { name = "starlette" },
+    { name = "tenacity" },
+    { name = "tiktoken" },
+    { name = "tqdm" },
+    { name = "typing-inspection" },
+    { name = "urllib3" },
+    { name = "uuid-utils" },
+    { name = "websockets" },
+    { name = "xxhash" },
+]
+dev = [
+    { name = "pyyaml" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "bcrypt", specifier = "==4.2.1" },
@@ -134,10 +137,47 @@ requires-dist = [
     { name = "langchain-openai", specifier = "==1.4.1" },
     { name = "langchain-text-splitters", specifier = "==1.1.3" },
     { name = "mcp", specifier = "==1.30.0" },
-    { name = "qdrant-client", specifier = "==1.19.1" },
+    { name = "qdrant-client", specifier = "==1.15.1" },
     { name = "uvicorn", specifier = "==0.54.0" },
     { name = "werkzeug", specifier = "==3.1.9" },
 ]
+
+[package.metadata.requires-dev]
+constraint-dependencies = [
+    { name = "anyio", specifier = "==4.14.2" },
+    { name = "certifi", specifier = "==2026.7.22" },
+    { name = "cffi", specifier = "==2.1.0" },
+    { name = "charset-normalizer", specifier = "==3.4.9" },
+    { name = "cryptography", specifier = "==49.0.0" },
+    { name = "grpcio", specifier = "==1.84.0" },
+    { name = "idna", specifier = "==3.18" },
+    { name = "jiter", specifier = "==0.16.0" },
+    { name = "jsonpatch", specifier = "==1.33" },
+    { name = "jsonpointer", specifier = "==3.1.1" },
+    { name = "langchain-core", specifier = "==1.5.2" },
+    { name = "langchain-protocol", specifier = "==0.0.18" },
+    { name = "langsmith", specifier = "==0.10.11" },
+    { name = "openai", specifier = "==2.50.0" },
+    { name = "orjson", specifier = "==3.11.9" },
+    { name = "packaging", specifier = "==26.2" },
+    { name = "pycparser", specifier = "==3.0" },
+    { name = "pydantic", specifier = "==2.13.4" },
+    { name = "pydantic-settings", specifier = "==2.16.0" },
+    { name = "python-dotenv", specifier = "==1.2.2" },
+    { name = "python-multipart", specifier = "==0.0.32" },
+    { name = "regex", specifier = "==2026.7.19" },
+    { name = "sse-starlette", specifier = "==3.5.0" },
+    { name = "starlette", specifier = "==1.8.0" },
+    { name = "tenacity", specifier = "==9.1.4" },
+    { name = "tiktoken", specifier = "==0.13.0" },
+    { name = "tqdm", specifier = "==4.70.0" },
+    { name = "typing-inspection", specifier = "==0.4.2" },
+    { name = "urllib3", specifier = "==2.7.0" },
+    { name = "uuid-utils", specifier = "==0.17.0" },
+    { name = "websockets", specifier = "==15.0.1" },
+    { name = "xxhash", specifier = "==3.8.1" },
+]
+dev = [{ name = "pyyaml", specifier = "==6.0.3" }]
 
 [[package]]
 name = "certifi"
@@ -887,7 +927,7 @@ wheels = [
 
 [[package]]
 name = "qdrant-client"
-version = "1.19.1"
+version = "1.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "grpcio" },
@@ -898,9 +938,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/20/c8fcd645d3f595b086fa11a085980e9f641fd56fc6221fb325d634b8c4fa/qdrant_client-1.19.1.tar.gz", hash = "sha256:8f1d851a8463ce8cc11cf39ed8a9c9fb4b5f9de60e9a096ff56da42d1f074907", size = 360625, upload-time = "2026-09-16T06:43:13.818Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/8b/76c7d325e11d97cb8eb5e261c3759e9ed6664735afbf32fdded5b580690c/qdrant_client-1.15.1.tar.gz", hash = "sha256:631f1f3caebfad0fd0c1fba98f41be81d9962b7bf3ca653bed3b727c0e0cbe0e", size = 295297, upload-time = "2025-07-31T19:35:19.627Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/9f/becebdda02beddd422587eba0d7dfac5b1f1e0aa1ada5bcf9b9e6f1c3717/qdrant_client-1.19.1-py3-none-any.whl", hash = "sha256:fca1a96c3f90f5fff853f6ee6877838a5768a04c963df9891a655a63313af8a0", size = 406533, upload-time = "2026-09-16T06:43:12.428Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/33/d8df6a2b214ffbe4138db9a1efe3248f67dc3c671f82308bea1582ecbbb7/qdrant_client-1.15.1-py3-none-any.whl", hash = "sha256:2b975099b378382f6ca1cfb43f0d59e541be6e16a5892f282a4b8de7eff5cb63", size = 337331, upload-time = "2025-07-31T19:35:17.539Z" },
 ]
 
 [[package]]
