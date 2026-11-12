@@ -10,7 +10,7 @@ import sqlite3
 import unicodedata
 from typing import Any
 
-from campusclaw import db as dbmod, storage
+from campusclaw import cache, db as dbmod, storage
 from campusclaw.config import ALLOWED_EXTENSIONS, Settings
 from campusclaw.errors import MESSAGES, ApiError
 from campusclaw.timeutil import now_iso
@@ -218,6 +218,8 @@ def upload_material(
             dbmod._safe_rollback(conn)
             raise err("DATABASE_ERROR", 500) from exc
 
+        # 新材料会把旧检索结果变成「少一条」，缓存必须立刻作废。
+        cache.invalidate_class(class_id)
         return material_id
     except BaseException:
         if staging_path is not None:
@@ -257,6 +259,8 @@ def rename_material(
     except sqlite3.Error as exc:
         dbmod._safe_rollback(conn)
         raise err("DATABASE_ERROR", 500) from exc
+    # 命中结果里带标题，改名后旧缓存里的标题就是错的。
+    cache.invalidate_class(class_id)
 
 
 # --------------------------------------------------------------------------
@@ -303,6 +307,8 @@ def mark_deleted(
         dbmod._safe_rollback(conn)
         raise err("DATABASE_ERROR", 500) from exc
 
+    # 删除后该材料的切片不该再出现在检索结果里。
+    cache.invalidate_class(class_id)
     return dict(material)
 
 

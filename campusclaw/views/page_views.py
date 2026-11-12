@@ -16,6 +16,18 @@ def index():
     return redirect(url_for("pages.materials_page"))
 
 
+@bp.get("/m")
+@bp.get("/m/")
+def mobile_page():
+    """第 10 课轻量端：手机浏览器直接打开的 H5。
+
+    页面本身不渲染任何服务端数据，也不要求登录——它自己调 ``/api/login`` 拿令牌，
+    与桌面端走完全相同的接口契约（202 + 任务标识、跨班 404、审计七列因此自动生效）。
+    少一层服务端会话，就少一处「轻量端有、桌面端没有」的差异。
+    """
+    return render_template("h5.html")
+
+
 @bp.get("/materials")
 def materials_page():
     user = rc.require_page_auth()

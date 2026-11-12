@@ -21,6 +21,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from campusclaw import cache
 from campusclaw import db as dbmod
 from campusclaw import metrics
 
@@ -236,6 +237,7 @@ def collect(conn: sqlite3.Connection, class_id: int | None = None) -> dict[str, 
         "checked_at": verdict["checked_at"],
         "scope": {"class_id": class_id if class_id is not None else "all"},
         "metrics": snap,
+        "cache": cache.stats(),
         "db": {
             "materials_by_class": [
                 {"class_id": int(r[0]), "count": int(r[1])} for r in material_rows

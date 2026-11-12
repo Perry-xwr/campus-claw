@@ -1,7 +1,9 @@
-"""页面访问控制 · GET /dashboard
+"""页面访问控制 · GET /claw/（别名 /dashboard）
 
-第 10 课判据「运行观测」落地面板。教师能看，学生看不到——
-面板上会露出操作人、请求路径这类运维信息，学生可见就是越权。
+第 10 课判据「面板看得见技能」落地面板。课件规定的路径是 ``/claw/``；
+``/dashboard`` 保留为兼容入口，两个都要能打开——换路径不该让旧链接失效。
+教师能看，学生看不到——面板上会露出操作人、请求路径这类运维信息，
+学生可见就是越权。
 
 三层都要测：教师 200 且渲染出关键区块、学生被挡、未登录被挡。
 只测教师 200 是不够的——授权判定缺失时，教师照样 200。
@@ -13,7 +15,7 @@ CASE = {
     "name": "运行观测面板：教师可看，学生与匿名被挡",
     "kind": "反例",
     "method": "GET",
-    "path": "/dashboard",
+    "path": "/claw/",
     "premise": "teacher_a 与 student_a1 均存在且可登录；面板已部署",
 }
 
@@ -22,17 +24,20 @@ def run(ctx):
     results = []
 
     teacher = ctx.cookie_client("teacher_a")
-    status, html = teacher.request("GET", "/dashboard")
-    # 关键区块：标题、告警区、规则明细表。缺任何一个说明模板没真正渲染。
-    markers = ["运行观测", "告警", "规则明细", "数据出口"]
+    # 关键区块：标题、告警区、三条曲线、规则明细、数据出口。缺任何一个说明模板没真正渲染。
+    markers = ["运行观测", "告警", "技能曲线", "chart-invocations", "规则明细", "数据出口"]
+    status, html = teacher.request("GET", "/claw/")
     missing = [m for m in markers if m not in html]
+    legacy_status, legacy_html = teacher.request("GET", "/dashboard")
+    legacy_missing = [m for m in markers if m not in legacy_html]
     results.append(record(
         name="教师访问面板",
         premise="teacher_a 已用 Cookie 会话登录",
-        action="GET /dashboard",
-        expected="HTTP 200，页面含「运行观测 / 告警 / 规则明细 / 数据出口」",
-        actual=f"HTTP {status}，缺失区块 {missing or '无'}",
-        ok=status == 200 and not missing,
+        action="GET /claw/ 与兼容入口 GET /dashboard",
+        expected="两处均 HTTP 200，页面含「运行观测 / 告警 / 技能曲线 / 规则明细 / 数据出口」",
+        actual=(f"/claw/ HTTP {status}，缺 {missing or '无'}；"
+                f"/dashboard HTTP {legacy_status}，缺 {legacy_missing or '无'}"),
+        ok=(status == 200 and legacy_status == 200 and not missing and not legacy_missing),
         kind="正常",
     ))
 

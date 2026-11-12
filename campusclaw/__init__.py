@@ -24,6 +24,7 @@ from campusclaw import (
     tutor_db,
 )
 from campusclaw.config import ConfigError, Settings, load_project_dotenv, load_settings
+from campusclaw.cors import register_cors
 from campusclaw.errors import register_error_handlers
 from campusclaw.request_context import (
     close_conn,
@@ -161,4 +162,6 @@ def create_app(
     register_page_redirect(app)
     # 第 9 课 SEC-07：每请求生成 request_id，并在响应头回写。
     register_request_tracking(app)
+    # 第 10 课：轻量端跨源声明。白名单为空时不产生任何 CORS 头（同源照旧可用）。
+    register_cors(app, settings.cors_origins)
     return app

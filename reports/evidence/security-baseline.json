@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T15:27:41+00:00",
+  "generated_at": "2026-11-12T16:12:18+00:00",
   "sec05": {
     "patterns": [
       "OpenAI 兼容 API 密钥",
@@ -8,9 +8,9 @@
       "硬编码凭据"
     ],
     "placeholder_filter": "跳过 xxx / ... / example / synthetic / ${...} 等占位与合成值",
-    "commits_scanned": 0,
+    "commits_scanned": 50,
     "files_scanned": {
-      "前端产物": 64,
+      "前端产物": 69,
       "运行日志": 1
     },
     "hit_count": 0,
@@ -18,12 +18,7 @@
     "demo_constant_count": 0,
     "demo_constants": [],
     "demo_disposition": "公开演示/测试固定常量（文档示例令牌、验收脚本固定 SECRET_KEY），非第三方密钥、不随仓库外发，逐条登记且不计入密钥明文命中；真实模型密钥只存于本机 .env，已 gitignore 且从未进入提交历史。",
-    "errors": [
-      {
-        "scope": "提交历史",
-        "error": "git 不可用，未能扫描全量历史"
-      }
-    ],
+    "errors": [],
     "verdict": "绿"
   },
   "sec06": {

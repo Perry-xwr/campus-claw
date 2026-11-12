@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from campusclaw import materials, request_context as rc, retrieval, retrieval_db
+from campusclaw import cache, materials, request_context as rc, retrieval, retrieval_db
 from campusclaw.chunking import StrategyError, validate_strategy
 from campusclaw.errors import ApiError, MESSAGES
 from campusclaw.retrieval_config import RetrievalConfig
@@ -28,11 +28,25 @@ def _question(body: dict, key: str) -> str:
 
 
 def _run_search(question: str, mode: str, limit: int, class_id: int):
+    """检索入口：先查缓存，未命中再回源，命中率写进面板。
+
+    缓存键带班级与版本号，跨班不会串；材料写入与索引换代会让版本号 +1，
+    该班的旧条目随即作废（TTL 只兜底多进程场景）。
+    """
+    key = cache.make_key(class_id, mode, question, limit)
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
     try:
-        return retrieval.search(rc.get_conn(), question, mode, class_id, limit,
+        hits = retrieval.search(rc.get_conn(), question, mode, class_id, limit,
                                 RetrievalConfig.from_env())
     except retrieval.RetrievalUnavailable as exc:
         raise ApiError(503, "RETRIEVAL_UNAVAILABLE", "检索服务暂不可用") from exc
+    # 只缓存命中结果：空结果常在材料刚上传、索引还没跑完时出现，
+    # 缓存它会让「等一下再问」也一直是空的。
+    if hits:
+        cache.put(key, hits)
+    return hits
 
 
 def _public_hit(hit: dict) -> dict:

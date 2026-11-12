@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4a3f8f">
+<title>CampusClaw 轻量端</title>
+<style>
+  /* 轻量端只做一件事：把既有接口在手机上走通。
+     不引框架、不引字体、不请求任何外部资源——弱网下多一个请求就多一次失败。 */
+  :root{
+    --brand:#4a3f8f; --brand-600:#372e6d; --brand-050:#f4f2fb;
+    --bg:#f4f5f9; --surface:#fff; --border:#e4e6ee; --text:#1a1d29;
+    --text-2:#555b6e; --text-3:#8b90a3; --ok:#1f7a5c; --warn:#a8671a; --danger:#a4332d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--text); font-size:15px; line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    padding-bottom:calc(28px + env(safe-area-inset-bottom));
+  }
+  header{
+    background:linear-gradient(135deg,#5f53a8,var(--brand-600)); color:#fff;
+    padding:18px 16px 20px; border-radius:0 0 16px 16px;
+  }
+  header h1{margin:0;font-size:17px;font-weight:800;letter-spacing:.2px}
+  header p{margin:4px 0 0;font-size:12.5px;opacity:.86}
+  main{padding:14px 12px 0;display:grid;gap:12px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .card > h2{
+    margin:0;padding:12px 14px;font-size:13.5px;font-weight:700;color:var(--text-2);
+    border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;
+  }
+  .card > h2 small{font-weight:600;color:var(--text-3);font-size:11.5px}
+  .body{padding:13px 14px}
+  label{display:block;font-size:12.5px;color:var(--text-2);font-weight:600;margin:0 0 5px}
+  input{
+    width:100%;padding:11px 12px;font-size:16px; /* 16px 以下 iOS 会自动放大页面 */
+    border:1px solid #ced2df;border-radius:10px;background:#fff;color:var(--text);
+  }
+  input:focus{outline:2px solid #cfc9ea;border-color:var(--brand)}
+  .row{display:grid;gap:10px;margin-bottom:10px}
+  .row.two{grid-template-columns:1fr 1fr}
+  button{
+    width:100%;padding:12px;border:0;border-radius:10px;font-size:15px;font-weight:700;
+    background:var(--brand);color:#fff;cursor:pointer;
+  }
+  button:disabled{opacity:.55}
+  button.ghost{background:var(--brand-050);color:var(--brand);border:1px solid #cfc9ea}
+  .hint{margin:9px 0 0;font-size:12px;color:var(--text-3)}
+  .items{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+  .items li{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;background:var(--brand-050);border-radius:10px}
+  .items b{font-size:12px;color:var(--brand-600);min-width:26px;text-align:right}
+  .items span{font-size:13.5px;color:var(--text-2);word-break:break-all}
+  .log{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+  .log li{
+    display:flex;gap:8px;align-items:flex-start;font-size:13px;letter-spacing:.1px;
+    padding:8px 10px;border-radius:9px;background:#f8f9fc;border:1px solid var(--border);
+  }
+  .log .tag{
+    flex:none;font-size:11px;font-weight:800;padding:1px 6px;border-radius:5px;
+    background:#e6e2f5;color:var(--brand-600);
+  }
+  .log li.ok{border-color:#bfe0d3;background:#f2faf6}
+  .log li.ok .tag{background:#d7efe4;color:var(--ok)}
+  .log li.bad{border-color:#eec9c6;background:#fdf4f3}
+  .log li.bad .tag{background:#f6dcda;color:var(--danger)}
+  .log code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--text-3)}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--border)}
+  .kv:last-child{border-bottom:0}
+  .kv span{color:var(--text-3)}
+  .kv b{font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;text-align:right}
+  footer{padding:16px 16px 0;text-align:center;font-size:11.5px;color:var(--text-3)}
+  .badge{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#e6e2f5;color:var(--brand-600)}
+  .badge.ok{background:#d7efe4;color:var(--ok)}
+  .badge.bad{background:#f6dcda;color:var(--danger)}
+</style>
+</head>
+<body>
+<header>
+  <h1>CampusClaw 轻量端</h1>
+  <p>手机浏览器直接打开 · 与桌面端同一套接口</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. 登录拿令牌 <small id="who">未登录</small></h2>
+    <div class="body">
+      <div class="row two">
+        <div><label for="username">用户名</label><input id="username" value="student_a1" autocomplete="username"></div>
+        <div><label for="password">口令</label><input id="password" type="password" value="StudentA1#2026" autocomplete="current-password"></div>
+      </div>
+      <button id="btn-login">登录</button>
+      <p class="hint">令牌只存在本页内存里，关掉页面即失效；不写 Cookie，跨站请求带不走它。</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. 本班材料 <small id="materials-count">—</small></h2>
+    <div class="body">
+      <button id="btn-materials" class="ghost">加载材料列表</button>
+      <ul class="items" id="materials" style="margin-top:11px"></ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. 提交作业 <small>202 + 任务标识</small></h2>
+    <div class="body">
+      <div class="row">
+        <div><label for="assignment">作业标识</label><input id="assignment" value="第一章练习"></div>
+        <div><label for="content">作答内容</label><input id="content" value="设未知数为 x，列方程后求解。"></div>
+      </div>
+      <button id="btn-submit">提交并轮询</button>
+      <div id="task-kv" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4. 跨班校验 <small>别人的讲义应当 404</small></h2>
+    <div class="body">
+      <div class="row two">
+        <div><label for="probe-id">材料 ID</label><input id="probe-id" value="3" inputmode="numeric"></div>
+        <div style="display:flex;align-items:flex-end"><button id="btn-probe" class="ghost">取详情</button></div>
+      </div>
+      <p class="hint">用本班账号取别班材料：预期 404，且界面上不出现任何标题或正文。</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>操作记录 <small>每步都记在这</small></h2>
+    <div class="body"><ul class="log" id="log"></ul></div>
+  </section>
+</main>
+
+<footer>CampusClaw · 第 10 课轻量端 · 接口与桌面端完全相同</footer>
+
+<script>
+(function () {
+  // 令牌放内存，不写 localStorage/sessionStorage：轻量端是公用手机场景，
+  // 持久化令牌等于把下一个用手机的人当成你。
+  let token = "";
+  const logBox = document.getElementById("log");
+  const $ = (id) => document.getElementById(id);
+
+  function log(tag, text, kind) {
+    const li = document.createElement("li");
+    if (kind) li.className = kind;
+    const t = document.createElement("span");
+    t.className = "tag";
+    t.textContent = tag;
+    const c = document.createElement("span");
+    c.innerHTML = text;
+    li.appendChild(t);
+    li.appendChild(c);
+    logBox.prepend(li);
+  }
+
+  async function api(method, path, body) {
+    const headers = {"Accept": "application/json"};
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = "Bearer " + token;
+    const response = await fetch(path, {
+      method: method, headers: headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let payload = null;
+    try { payload = await response.json(); } catch (e) { payload = null; }
+    return {status: response.status, payload: payload, headers: response.headers};
+  }
+
+  function fail(reason) {
+    log("错误", reason, "bad");
+  }
+
+  $("btn-login").addEventListener("click", async () => {
+    const username = $("username").value.trim();
+    const password = $("password").value;
+    if (!username || !password) { fail("用户名与口令都要填"); return; }
+    try {
+      const r = await api("POST", "/api/login", {username: username, password: password});
+      if (r.status !== 200) { fail("登录失败：HTTP " + r.status + " " + ((r.payload || {}).error || "")); return; }
+      token = r.payload.token;
+      $("who").textContent = username + "（" + (r.payload.user ? r.payload.user.role : "") + "）";
+      $("who").className = "badge ok";
+      log("登录", "拿到令牌，长度 " + token.length + "；角色 " + ((r.payload.user || {}).role || "—"), "ok");
+    } catch (e) { fail("网络错误：" + e.message); }
+  });
+
+  $("btn-materials").addEventListener("click", async () => {
+    if (!token) { fail("先登录"); return; }
+    try {
+      const r = await api("GET", "/api/materials");
+      if (r.status !== 200) { fail("材料列表 HTTP " + r.status); return; }
+      const items = r.payload.items || [];
+      $("materials-count").textContent = items.length + " 份";
+      $("materials-count").className = "badge";
+      const list = $("materials");
+      list.innerHTML = "";
+      items.forEach((item, index) => {
+        const li = document.createElement("li");
+        const n = document.createElement("b");
+        n.textContent = "#" + (index + 1);
+        const s = document.createElement("span");
+        s.textContent = item.title + "（ID " + item.id + "）";
+        li.appendChild(n); li.appendChild(s);
+        list.appendChild(li);
+      });
+      log("材料", "本班共 " + items.length + " 份；响应头 X-Request-Id=" +
+        (r.headers.get("X-Request-Id") || "—"), "ok");
+    } catch (e) { fail("网络错误：" + e.message); }
+  });
+
+  function renderTask(task) {
+    const box = $("task-kv");
+    box.innerHTML = "";
+    const rows = [
+      ["任务标识", task.task_id || "—"],
+      ["状态", task.status || "—"],
+      ["轮询地址", task.status_url || ("/api/tasks/" + (task.task_id || ""))],
+    ];
+    rows.forEach(([k, v]) => {
+      const div = document.createElement("div");
+      div.className = "kv";
+      const a = document.createElement("span"); a.textContent = k;
+      const b = document.createElement("b"); b.textContent = v;
+      div.appendChild(a); div.appendChild(b);
+      box.appendChild(div);
+    });
+  }
+
+  async function poll(taskId) {
+    // 服务器只承诺「已接收」；结果得自己来取。三轮足够看清 pending → running → succeeded。
+    for (let round = 1; round <= 12; round++) {
+      const r = await api("GET", "/api/tasks/" + encodeURIComponent(taskId));
+      if (r.status !== 200) { fail("轮询 HTTP " + r.status); return; }
+      const status = r.payload.status;
+      renderTask(r.payload);
+      log("轮询", "第 " + round + " 次：状态 " + status, status === "succeeded" ? "ok" : "");
+      if (status === "succeeded" || status === "failed" || status === "dead") return;
+      await new Promise((done) => setTimeout(done, 800));
+    }
+  }
+
+  $("btn-submit").addEventListener("click", async () => {
+    if (!token) { fail("先登录"); return; }
+    $("btn-submit").disabled = true;
+    try {
+      const r = await api("POST", "/api/submissions", {
+        assignment_ref: $("assignment").value.trim(),
+        content: $("content").value.trim(),
+      });
+      if (r.status !== 202) { fail("提交 HTTP " + r.status + "（期望 202）"); return; }
+      renderTask(r.payload);
+      log("提交", "HTTP 202，task_id=" + r.payload.task_id + "，响应体不含分数", "ok");
+      await poll(r.payload.task_id);
+    } catch (e) { fail("网络错误：" + e.message); }
+    finally { $("btn-submit").disabled = false; }
+  });
+
+  $("btn-probe").addEventListener("click", async () => {
+    if (!token) { fail("先登录"); return; }
+    const id = $("probe-id").value.trim();
+    const r = await api("GET", "/api/materials/" + encodeURIComponent(id));
+    if (r.status === 404) {
+      log("越权", "材料 " + id + " → HTTP 404（不存在或不属于本班，二者不可区分）", "ok");
+      return;
+    }
+    if (r.status === 200) {
+      log("越权", "材料 " + id + " → HTTP 200，这是本班材料，换一个 ID 试", "");
+      return;
+    }
+    fail("预期外的状态码 " + r.status);
+  });
+})();
+</script>
+</body>
+</html>

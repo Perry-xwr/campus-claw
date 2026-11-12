@@ -177,6 +177,20 @@ def render(conn: sqlite3.Connection) -> str:
     lines.append("# HELP campusclaw_up 进程存活标记")
     lines.append("# TYPE campusclaw_up gauge")
     lines.append("campusclaw_up 1")
+
+    # 检索缓存：命中率是「改了哪一处」的直接证据，压测报告引用的就是这三个数。
+    from campusclaw import cache
+
+    stats = cache.stats()
+    lines.append("# HELP campusclaw_retrieval_cache_hits_total 检索缓存命中次数")
+    lines.append("# TYPE campusclaw_retrieval_cache_hits_total counter")
+    lines.append("campusclaw_retrieval_cache_hits_total " + str(stats["hits"]))
+    lines.append("# HELP campusclaw_retrieval_cache_misses_total 检索缓存未命中次数")
+    lines.append("# TYPE campusclaw_retrieval_cache_misses_total counter")
+    lines.append("campusclaw_retrieval_cache_misses_total " + str(stats["misses"]))
+    lines.append("# HELP campusclaw_retrieval_cache_hit_rate 检索缓存命中率（0～1）")
+    lines.append("# TYPE campusclaw_retrieval_cache_hit_rate gauge")
+    lines.append("campusclaw_retrieval_cache_hit_rate " + str(stats["hit_rate"]))
     return "\n".join(lines) + "\n"
 
 

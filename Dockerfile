@@ -2,6 +2,15 @@
 # 本地验收、门禁、容器跑同一个解释器，否则「本地绿、容器崩」无从归因。
 FROM python:3.11-slim
 
+# 镜像身份：这两个参数由 CI 在构建时传入，标签因此能反查到具体提交与构建时刻。
+# 不传时给 unknown——宁可标注「不知道」，也不要留一个看起来像真的默认提交号。
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+LABEL org.opencontainers.image.title="campusclaw" \
+      org.opencontainers.image.description="CampusClaw 智能教学平台（Flask + SQLite）" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}"
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1

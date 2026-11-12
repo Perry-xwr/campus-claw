@@ -110,6 +110,9 @@ class Settings:
     seed_passwords: dict[str, str] = field(default_factory=dict)
     strict: bool = False
     dev_defaults: list[str] = field(default_factory=list)
+    #: 轻量端（H5）等跨源前端允许的来源白名单。默认为空 = 只允许同源，
+    #: 也就是「不声明就不放行」，与浏览器的默认行为一致。
+    cors_origins: tuple[str, ...] = ()
 
     def using_dev_defaults(self) -> bool:
         return bool(self.dev_defaults)
@@ -148,8 +151,14 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
         rounds = BCRYPT_ROUNDS
     rounds = max(rounds, BCRYPT_ROUNDS)
 
+    cors_raw = (source.get("CORS_ORIGINS") or "").strip()
+    cors_origins = tuple(
+        item.strip().rstrip("/") for item in cors_raw.split(",") if item.strip()
+    )
+
     return Settings(
         secret_key=secret_key,
+        cors_origins=cors_origins,
         home=home,
         data_dir=data_dir,
         upload_dir=upload_dir,

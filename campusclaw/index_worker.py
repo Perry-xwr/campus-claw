@@ -9,7 +9,7 @@ import time
 
 from qdrant_client import models
 
-from campusclaw import db as dbmod, retrieval_db, tutor_db
+from campusclaw import cache, db as dbmod, retrieval_db, tutor_db
 from campusclaw.chunking import split_body
 from campusclaw.retrieval import embedding_model, fts_tokens, qdrant
 from campusclaw.retrieval_config import RetrievalConfig
@@ -204,6 +204,8 @@ def process_one(conn, config: RetrievalConfig, *, embedder_factory=embedding_mod
         except BaseException:
             conn.execute("ROLLBACK")
             raise
+        # 切片从 pending 变 ready，同一查询此刻起能多检索到内容，旧缓存必须作废。
+        cache.invalidate_class(int(material["class_id"]))
         try:
             _retire_stale(conn, config, client)
         except Exception:

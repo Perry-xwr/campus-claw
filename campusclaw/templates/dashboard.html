@@ -43,6 +43,26 @@
   {% set st_badge = 'badge-ok' if st == 'ok' else ('badge-warn' if st == 'degraded' else 'badge-danger') %}
   {% set st_text = '全部正常' if st == 'ok' else ('需要关注' if st == 'degraded' else '存在严重问题') %}
 
+  <style>
+    .range-switch{display:inline-flex;gap:4px;padding:3px;background:var(--surface-2);
+      border:1px solid var(--border);border-radius:999px}
+    .range-btn{border:0;background:transparent;color:var(--text-2);font-size:12.5px;
+      font-weight:600;padding:4px 11px;border-radius:999px;cursor:pointer}
+    .range-btn:hover{color:var(--brand);background:var(--brand-050)}
+    .range-btn.is-on{background:var(--brand);color:#fff}
+    .chart-hint{margin:0 0 14px;color:var(--text-3);font-size:12.5px}
+    .chart-hint b{color:var(--text-2)}
+    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .chart{margin:0;min-width:0}
+    .chart-wide{grid-column:1 / -1}
+    .chart figcaption{font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:8px}
+    .chart canvas{display:block;width:100%;background:var(--surface)}
+    .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:12px;color:var(--text-2)}
+    .legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;
+      vertical-align:middle}
+    @media (max-width:820px){.chart-grid{grid-template-columns:1fr}}
+  </style>
+
   <section class="banner">
     <div class="banner-inner">
       <div>
@@ -50,7 +70,7 @@
         <p>
           服务健康度实时判定：<span class="badge {{ st_badge }}">{{ st_text }}</span>
           <span style="color:var(--text-3);font-size:12.5px;margin-left:8px">
-            判定时间 {{ data.checked_at }}，共 {{ data.rules|length }} 条规则，通过 {{ data.passed }} 条{% if data.skipped %}，跳过 {{ data.skipped }} 条{% endif %}
+            面板路径 <span class="mono">/claw/</span>，判定时间 {{ data.checked_at }}，共 {{ data.rules|length }} 条规则，通过 {{ data.passed }} 条{% if data.skipped %}，跳过 {{ data.skipped }} 条{% endif %}
           </span>
         </p>
       </div>
@@ -60,6 +80,7 @@
         <div class="stat"><b id="kpi-index-failed">{{ data.db.index_failed }}</b><span>索引失败</span></div>
         <div class="stat"><b id="kpi-tasks">{{ data.db.tasks_pending }}</b><span>任务积压</span></div>
         <div class="stat"><b id="kpi-denials">{{ data.db.denials_window }}</b><span>近期拒绝</span></div>
+        <div class="stat"><b id="kpi-cache">{{ (data.cache.hit_rate * 100)|round(1) }}%</b><span>检索缓存命中</span></div>
       </div>
     </div>
   </section>
@@ -100,6 +121,51 @@
             当前 {{ data.rules|length }} 条规则全部通过
           </div>
           {% endif %}
+        </div>
+      </section>
+
+      <section class="card" id="trends">
+        <div class="card-head">
+          <span class="card-title">技能曲线</span>
+          <span class="range-switch" role="group" aria-label="时间轴缩放">
+            <button type="button" class="range-btn is-on" data-range="1h">1 小时</button>
+            <button type="button" class="range-btn" data-range="6h">6 小时</button>
+            <button type="button" class="range-btn" data-range="24h">今天</button>
+            <button type="button" class="range-btn" data-range="7d">7 天</button>
+          </span>
+        </div>
+        <div class="card-body">
+          <p class="chart-hint" id="chart-hint">
+            桶宽 <b id="chart-bucket">{{ series.bucket_minutes }}</b> 分钟 ·
+            窗口内技能调用 <b id="chart-calls">{{ series.invocations }}</b> 次、失败
+            <b id="chart-fails">{{ series.errors }}</b> 次 ·
+            最近刷新 <span id="chart-at">{{ series.generated_at }}</span>
+          </p>
+          <div class="chart-grid">
+            <figure class="chart">
+              <figcaption>技能调用量（按技能分线，不合计）</figcaption>
+              <canvas id="chart-invocations" height="190"></canvas>
+              <div class="legend" id="legend-invocations"></div>
+            </figure>
+            <figure class="chart">
+              <figcaption>每个技能的错误率（三条线不互相平均）</figcaption>
+              <canvas id="chart-errors" height="190"></canvas>
+              <div class="legend" id="legend-errors"></div>
+            </figure>
+            <figure class="chart chart-wide">
+              <figcaption>接口 P95（毫秒，左轴）与任务队列深度（右轴，条数）</figcaption>
+              <canvas id="chart-runtime" height="190"></canvas>
+              <div class="legend" id="legend-runtime"></div>
+            </figure>
+          </div>
+        </div>
+        <div class="card-note">
+          三条线的口径都取自上一课的审计七列：调用量与错误率来自
+          <span class="mono">mcp_tool_calls</span>（<span class="mono">skill_id</span> +
+          <span class="mono">status</span>），P95 来自 <span class="mono">audit_events.duration_ms</span>，
+          队列深度由 <span class="mono">grade_tasks</span> 的入队/结束时间扫出来。
+          分位数不能相加，所以换档位时由服务端重新分桶，不在前端把一分钟桶并成十分钟桶。
+          桶内样本少于 3 条的点留空，不画成 0。
         </div>
       </section>
 
@@ -307,6 +373,10 @@
                 <td class="mono">GET /api/observability</td>
                 <td>面板同款完整快照，需教师身份</td>
               </tr>
+              <tr>
+                <td class="mono">GET /api/observability/series?range=1h</td>
+                <td>三条曲线的分桶数据，档位 1h / 6h / 24h / 7d，需教师身份</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -318,22 +388,245 @@
 
 <script>
 // 面板每 10 秒拉一次 JSON 刷新数字，不整页重载，避免看着闪。
-(async function () {
-  const api = "{{ url_for('dashboard.observability_api') }}";
-  async function refresh() {
-    try {
-      const resp = await fetch(api, {headers: {"Accept": "application/json"}});
-      if (!resp.ok) return;
-      const d = await resp.json();
-      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-      set("kpi-requests", d.metrics.requests_total);
-      set("kpi-p95", d.metrics.duration_ms.p95);
-      set("kpi-index-failed", d.db.index_failed);
-      set("kpi-tasks", d.db.tasks_pending);
-      set("kpi-denials", d.db.denials_window);
-    } catch (e) { /* 面板刷新失败不打扰用户，下一次再试 */ }
+async function refreshKpi(api) {
+  try {
+    const resp = await fetch(api, {headers: {"Accept": "application/json"}});
+    if (!resp.ok) return;
+    const d = await resp.json();
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set("kpi-requests", d.metrics.requests_total);
+    set("kpi-p95", d.metrics.duration_ms.p95);
+    set("kpi-index-failed", d.db.index_failed);
+    set("kpi-tasks", d.db.tasks_pending);
+    set("kpi-denials", d.db.denials_window);
+    if (d.cache) set("kpi-cache", (d.cache.hit_rate * 100).toFixed(1) + "%");
+  } catch (e) { /* 面板刷新失败不打扰用户，下一次再试 */ }
+}
+
+// ---- 曲线：饼图/柱状图都用不上，三条线一律 canvas 手绘，不引第三方库 ----
+(function () {
+  // 技能最多几条线：本项目三个技能，留到六色够用。
+  const PALETTE = ["#4a3f8f", "#2f7d6d", "#b9773a", "#a4433c", "#3f6fa8", "#7a5aa8"];
+  const INITIAL = {{ series|tojson }};
+  const SERIES_URL = "{{ url_for('dashboard.series_api') }}";
+  let state = INITIAL;
+  let range = INITIAL.range || "1h";
+
+  function cssVar(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
   }
-  setInterval(refresh, 10000);
+
+  function prepare(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth || canvas.parentElement.clientWidth || 520;
+    const height = Number(canvas.getAttribute("height")) || 190;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.height = height + "px";
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    return {ctx: ctx, w: width, h: height};
+  }
+
+  // 空窗口也要有反馈：画一条「还没有数据」的说明，而不是一块白板。
+  function notice(ctx, w, h, text) {
+    ctx.fillStyle = cssVar("--text-3", "#8b90a3");
+    ctx.font = "12.5px " + cssVar("--font", "sans-serif");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, w / 2, h / 2);
+  }
+
+  function niceMax(value) {
+    if (!isFinite(value) || value <= 0) return 1;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+    const scaled = value / magnitude;
+    const step = scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10;
+    return step * magnitude;
+  }
+
+  function draw(canvas, cfg) {
+    const box = prepare(canvas);
+    const ctx = box.ctx, w = box.w, h = box.h;
+    const padL = 44, padR = cfg.rightAxis ? 44 : 12, padT = 10, padB = 24;
+    const plotW = Math.max(10, w - padL - padR), plotH = Math.max(10, h - padT - padB);
+    const labels = cfg.labels || [];
+    const series = (cfg.series || []).filter(function (s) { return s && s.values; });
+    const hasPoint = series.some(function (s) {
+      return s.values.some(function (v) { return v !== null && v !== undefined; });
+    });
+    if (!labels.length || !series.length || !hasPoint) {
+      notice(ctx, w, h, cfg.emptyText || "窗口内还没有数据");
+      return;
+    }
+
+    const leftMax = niceMax(Math.max.apply(null, [1].concat(
+      series.filter(function (s) { return s.axis !== "right"; })
+        .reduce(function (acc, s) { return acc.concat(s.values.filter(function (v) { return v !== null && v !== undefined; })); }, [])
+    )) * 1.15);
+    const rightMax = niceMax(Math.max.apply(null, [1].concat(
+      series.filter(function (s) { return s.axis === "right"; })
+        .reduce(function (acc, s) { return acc.concat(s.values.filter(function (v) { return v !== null && v !== undefined; })); }, [])
+    )) * 1.15);
+
+    const grid = cssVar("--border", "#e4e6ee");
+    const faint = cssVar("--text-3", "#8b90a3");
+    const xAt = function (i) {
+      return labels.length === 1 ? padL + plotW / 2 : padL + (plotW * i) / (labels.length - 1);
+    };
+    const yAt = function (v, axis) {
+      const max = axis === "right" ? rightMax : leftMax;
+      return padT + plotH - (plotH * Math.min(v, max)) / max;
+    };
+
+    // 横向网格 + 两侧刻度：左轴给 P95/次数，右轴给队列深度。
+    ctx.strokeStyle = grid;
+    ctx.fillStyle = faint;
+    ctx.lineWidth = 1;
+    ctx.font = "10.5px " + cssVar("--font", "sans-serif");
+    ctx.textBaseline = "middle";
+    for (let row = 0; row <= 3; row++) {
+      const y = padT + (plotH * row) / 3;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+      const leftValue = leftMax * (1 - row / 3);
+      const shown = cfg.format ? cfg.format(leftValue) : Math.round(leftValue);
+      ctx.textAlign = "right";
+      ctx.fillText(shown, padL - 6, y);
+      if (cfg.rightAxis) {
+        ctx.textAlign = "left";
+        ctx.fillText(String(Math.round(rightMax * (1 - row / 3))), padL + plotW + 6, y);
+      }
+    }
+
+    // 横轴标签：最多六个，密了就只显示首尾会看不出时间走向。
+    const step = Math.max(1, Math.ceil(labels.length / 6));
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let i = 0; i < labels.length; i += step) {
+      ctx.fillText(labels[i], xAt(i), padT + plotH + 6);
+    }
+
+    series.forEach(function (s, index) {
+      const color = s.color || PALETTE[index % PALETTE.length];
+      const axis = s.axis === "right" ? "right" : "left";
+      // 逐段连：null 处断开，不把「没有样本」画成 0 掉下去。
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      let pen = false;
+      s.values.forEach(function (value, i) {
+        if (value === null || value === undefined) { pen = false; return; }
+        const x = xAt(i), y = yAt(value, axis);
+        if (pen) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        pen = true;
+      });
+      ctx.stroke();
+
+      // 点少时补圆点，否则一条两点连线看不出具体落点。
+      const points = s.values.filter(function (v) { return v !== null && v !== undefined; }).length;
+      if (points <= 40) {
+        ctx.fillStyle = color;
+        s.values.forEach(function (value, i) {
+          if (value === null || value === undefined) return;
+          ctx.beginPath();
+          ctx.arc(xAt(i), yAt(value, axis), 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+    });
+  }
+
+  function legend(id, series) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.innerHTML = "";
+    series.forEach(function (s, index) {
+      const item = document.createElement("span");
+      const swatch = document.createElement("i");
+      swatch.style.background = s.color || PALETTE[index % PALETTE.length];
+      item.appendChild(swatch);
+      item.appendChild(document.createTextNode(s.name + (s.axis === "right" ? "（右轴）" : "")));
+      box.appendChild(item);
+    });
+  }
+
+  function skillLines(key) {
+    return (state.skills || []).map(function (skill, index) {
+      return {name: skill.name, values: skill[key], color: PALETTE[index % PALETTE.length]};
+    });
+  }
+
+  function render() {
+    const invocations = skillLines("invocations");
+    const errors = skillLines("error_rate");
+    draw(document.getElementById("chart-invocations"), {
+      labels: state.buckets, series: invocations,
+      format: function (v) { return String(Math.round(v)); },
+      emptyText: "窗口内还没有技能调用：触发一次技能再回来看",
+    });
+    legend("legend-invocations", invocations);
+    draw(document.getElementById("chart-errors"), {
+      labels: state.buckets, series: errors,
+      format: function (v) { return (v * 100).toFixed(0) + "%"; },
+      emptyText: "还没有可算错误率的调用",
+    });
+    legend("legend-errors", errors);
+
+    const runtime = [
+      {name: "接口 P95", values: state.p95, color: PALETTE[0]},
+      {name: "队列深度", values: state.queue, color: PALETTE[2], axis: "right"},
+    ];
+    draw(document.getElementById("chart-runtime"), {
+      labels: state.buckets, series: runtime, rightAxis: true,
+      format: function (v) { return Math.round(v) + "ms"; },
+      emptyText: "还没有请求耗时样本与排队任务",
+    });
+    legend("legend-runtime", runtime);
+
+    const set = function (id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+    set("chart-bucket", state.bucket_minutes);
+    set("chart-calls", state.invocations);
+    set("chart-fails", state.errors);
+    set("chart-at", state.generated_at);
+  }
+
+  async function load(nextRange) {
+    range = nextRange;
+    document.querySelectorAll(".range-btn").forEach(function (btn) {
+      btn.classList.toggle("is-on", btn.dataset.range === range);
+    });
+    try {
+      const resp = await fetch(SERIES_URL + "?range=" + encodeURIComponent(range),
+                               {headers: {"Accept": "application/json"}});
+      if (!resp.ok) return;
+      state = await resp.json();
+      render();
+    } catch (e) { /* 换档失败保留上一张图，比清空好 */ }
+  }
+
+  document.querySelectorAll(".range-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () { load(btn.dataset.range); });
+  });
+
+  render();
+  window.addEventListener("resize", render);
+  // 曲线刷新比数字慢一档：10 秒重绘三条线会让页面一直在动。
+  setInterval(function () { load(range); }, 30000);
+  window.campusclawCharts = {load: load, render: render};
+})();
+
+(function () {
+  const api = "{{ url_for('dashboard.observability_api') }}";
+  refreshKpi(api);
+  setInterval(function () { refreshKpi(api); }, 10000);
 })();
 </script>
 {% endblock %}

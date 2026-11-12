@@ -66,6 +66,35 @@ jobs:
       - name: 容器配置静态校验
         run: uv run python scripts/check_compose.py --out reports/evidence/compose-static.json
 
+      # 判据「推送即构建」的最后一环：流程执行、测试通过之后必须真的产出镜像。
+      # 放在测试之后是有意的——门禁没绿就构建出一个镜像，等于给坏提交发通行证。
+      # 标签用提交 SHA，编号因此能反查提交；REVISION 标签写进镜像元数据，
+      # 镜像离开仓库后仍能回答「这是哪次提交做的」。
+      - name: 构建镜像（campusclaw:${GITHUB_SHA}）
+        run: |
+          set -eu
+          IMAGE="campusclaw:${GITHUB_SHA}"
+          docker build \
+            --build-arg GIT_SHA="${GITHUB_SHA}" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "${IMAGE}" \
+            -t "campusclaw:run-${GITHUB_RUN_NUMBER}" \
+            .
+          docker image inspect "${IMAGE}" --format '镜像 ID {{.Id}}，大小 {{.Size}} 字节'
+          REVISION="$(docker image inspect "${IMAGE}" \
+            --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          echo "镜像内 revision 标签：${REVISION}"
+          test "${REVISION}" = "${GITHUB_SHA}"
+          # 冒烟：镜像里的代码能导入，至少证明依赖装齐、包没漏进 COPY。
+          docker run --rm "${IMAGE}" python -c "import campusclaw; print('import ok')"
+          {
+            echo "### 镜像已产出"
+            echo ""
+            echo "- 标签：\`${IMAGE}\`、\`campusclaw:run-${GITHUB_RUN_NUMBER}\`"
+            echo "- 反查提交：\`${GITHUB_SHA}\`（镜像 \`org.opencontainers.image.revision\` 同值）"
+            echo "- 镜像 ID / 大小：\`$(docker image inspect "${IMAGE}" --format '{{.Id}} {{.Size}}')\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: 归档证据
         if: always()
         uses: actions/upload-artifact@v4
