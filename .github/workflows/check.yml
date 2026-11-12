@@ -35,6 +35,13 @@ jobs:
       - name: 安装依赖（按锁文件，验证可复现）
         run: uv sync --locked
 
+      # 仓库不含 data/ 与 *.db（.gitignore 排除），干净 runner 上本来没有库。
+      # 少了这一步，下面「SEC-07 审计七列结构断言」与「运行观测告警判定」会因为
+      # 库不存在而直接 return 0——步骤显示绿色，断言和规则却一条都没跑。
+      # 这里按应用启动时的同一套 schema 建出结构，只建表不灌数据。
+      - name: 初始化数据库结构（否则审计与观测两步空转）
+        run: uv run python scripts/init_schema.py --db data/app.db
+
       - name: SEC-05 密钥扫描 + SEC-06 依赖基线
         run: uv run python scripts/check_security.py --out reports/evidence/security-baseline.json
 
