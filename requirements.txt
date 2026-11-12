@@ -1,7 +1,9 @@
 # 仅供 Dockerfile 构建镜像使用。
 # 本地开发请用 pyproject.toml + uv（uv sync / uv run），两处版本需保持一致。
-Flask==3.1.1
-Werkzeug==3.1.8
+# 2026-11-12 SEC-06：3.1.1 / 3.1.8 命中 PYSEC-2026-2151 / PYSEC-2026-4312，
+# 升到修复版本并复测（pip-audit --vulnerability-service osv）。
+Flask==3.1.3
+Werkzeug==3.1.9
 bcrypt==4.2.1
 gunicorn==23.0.0
 langchain-openai==1.4.1
