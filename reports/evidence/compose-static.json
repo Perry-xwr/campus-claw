@@ -1,0 +1,76 @@
+{
+  "passed": 10,
+  "failed": 0,
+  "items": [
+    {
+      "id": "compose.yaml",
+      "title": "docker-compose.yml 可解析",
+      "ok": true,
+      "detail": "服务 4 个",
+      "fix": ""
+    },
+    {
+      "id": "compose.name",
+      "title": "固定了 Compose 项目名",
+      "ok": true,
+      "detail": "name=campusclaw",
+      "fix": "在 compose 顶层加 name: campusclaw"
+    },
+    {
+      "id": "compose.depends_on",
+      "title": "depends_on 均指向已定义服务",
+      "ok": true,
+      "detail": "4 个服务依赖闭合",
+      "fix": ""
+    },
+    {
+      "id": "dockerfile.exists",
+      "title": "build 上下文与 Dockerfile 存在",
+      "ok": true,
+      "detail": "全部存在",
+      "fix": ""
+    },
+    {
+      "id": "dockerfile.copy",
+      "title": "COPY 源文件均存在",
+      "ok": true,
+      "detail": "COPY 源齐备",
+      "fix": "补齐文件或从 Dockerfile 删除该行"
+    },
+    {
+      "id": "deps.entrypoint",
+      "title": "启动命令的可执行文件在依赖清单中",
+      "ok": true,
+      "detail": "命令 ['gunicorn', 'python'] 均有来源",
+      "fix": ""
+    },
+    {
+      "id": "compose.module",
+      "title": "python -m 的模块在仓库中存在",
+      "ok": true,
+      "detail": "模块 campusclaw.index_worker、mcp_server 齐备",
+      "fix": ""
+    },
+    {
+      "id": "compose.healthcheck",
+      "title": "健康检查路径是真实路由",
+      "ok": true,
+      "detail": "健康检查路径 /health 已注册",
+      "fix": "把健康检查改成应用实际暴露的路径"
+    },
+    {
+      "id": "dockerfile.expose",
+      "title": "端口映射与 EXPOSE 一致",
+      "ok": true,
+      "detail": "EXPOSE [8080, 8090]",
+      "fix": ""
+    },
+    {
+      "id": "python.version",
+      "title": "镜像 Python 版本符合 requires-python",
+      "ok": true,
+      "detail": "镜像 3.11；声明 >=3.11,<3.12",
+      "fix": "镜像与本地验收环境统一到同一小版本"
+    }
+  ]
+}

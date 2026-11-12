@@ -2,7 +2,7 @@
   "source": "data\\app.db",
   "verdict": {
     "status": "ok",
-    "checked_at": "2026-11-12T19:43:42+08:00",
+    "checked_at": "2026-11-12T19:48:16+08:00",
     "rule_count": 5,
     "passed": 4,
     "skipped": 1,

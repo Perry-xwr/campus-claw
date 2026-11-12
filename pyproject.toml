@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "班级教学材料管理与可追溯知识库检索（互联网开发课程项目）"
 readme = "README.md"
 # 锁定 3.11：与既有验收环境（anaconda langdev，Python 3.11.15）一致。
-# 容器镜像用 3.12，但容器只读 requirements.txt，不受此处约束。
+# 容器镜像同为 python:3.11-slim——本地、门禁、容器跑同一个解释器版本。
 requires-python = ">=3.11,<3.12"
 
 dependencies = [

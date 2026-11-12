@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T11:42:58+00:00",
+  "generated_at": "2026-11-12T11:47:37+00:00",
   "sec05": {
     "patterns": [
       "OpenAI 兼容 API 密钥",
@@ -10,7 +10,7 @@
     "placeholder_filter": "跳过 xxx / ... / example / synthetic / ${...} 等占位与合成值",
     "commits_scanned": 0,
     "files_scanned": {
-      "前端产物": 60,
+      "前端产物": 61,
       "运行日志": 1
     },
     "hit_count": 0,

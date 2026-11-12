@@ -6,6 +6,7 @@
 #   check-apitest   → 第 9 课注入三件套
 #   check-audit     → SEC-07 审计七列结构断言
 #   check-observe   → 第 10 课运行观测告警判定
+#   check-compose   → 容器配置静态校验（不需要 Docker）
 #
 # 任一步非零退出即整体失败，主干因此进不去坏提交。
 name: check
@@ -18,7 +19,7 @@ on:
 
 jobs:
   gate:
-    name: 门禁（安全 / 异步 / 注入 / 审计）
+    name: 门禁（安全 / 异步 / 注入 / 审计 / 观测 / 容器）
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -52,6 +53,11 @@ jobs:
         run: >-
           uv run python scripts/check_observe.py
           --db data/app.db --out reports/evidence/observe.json
+
+      # 容器配置静态校验：悬空依赖、COPY 缺源、端口不符、镜像版本越界。
+      # 这些错误不需要 Docker 就能查，放在 CI 里挡住「配置写完就提」的提交。
+      - name: 容器配置静态校验
+        run: uv run python scripts/check_compose.py --out reports/evidence/compose-static.json
 
       - name: 归档证据
         if: always()

@@ -8,7 +8,7 @@ pwsh -File scripts/check-all.ps1 -Mode security
 pwsh -File scripts/check-all.ps1 -Mode async -Python C:\Path\To\python.exe
 #>
 param(
-    [ValidateSet("all", "security", "async", "apitest", "audit", "observe")]
+    [ValidateSet("all", "security", "async", "apitest", "audit", "observe", "compose")]
     [string]$Mode = "all",
     [string]$Python = ""
 )
@@ -42,25 +42,25 @@ New-Item -ItemType Directory -Force -Path $evidence | Out-Null
 $failed = 0
 
 if ($Mode -in @("all", "security")) {
-    Write-Host "=== [1/5] SEC-05 密钥扫描 + SEC-06 依赖基线 ===" -ForegroundColor Cyan
+    Write-Host "=== [1/6] SEC-05 密钥扫描 + SEC-06 依赖基线 ===" -ForegroundColor Cyan
     Invoke-Check "scripts\check_security.py" @("--out", (Join-Path $evidence "security-baseline.json"))
     if ($LASTEXITCODE -ne 0) { $failed = 1 }
 }
 
 if ($Mode -in @("all", "async")) {
-    Write-Host "=== [2/5] 第 8 课三条判据复现 ===" -ForegroundColor Cyan
+    Write-Host "=== [2/6] 第 8 课三条判据复现 ===" -ForegroundColor Cyan
     Invoke-Check "scripts\acceptance_async.py" @("--out", (Join-Path $evidence "async-acceptance.json"))
     if ($LASTEXITCODE -ne 0) { $failed = 1 }
 }
 
 if ($Mode -in @("all", "apitest")) {
-    Write-Host "=== [3/5] 第 9 课注入三件套（SQL / XSS / CSRF）===" -ForegroundColor Cyan
+    Write-Host "=== [3/6] 第 9 课注入三件套（SQL / XSS / CSRF）===" -ForegroundColor Cyan
     Invoke-Check "apitest\run_all.py" @("--no-report")
     if ($LASTEXITCODE -ne 0) { $failed = 1 }
 }
 
 if ($Mode -in @("all", "audit")) {
-    Write-Host "=== [4/5] SEC-07 审计日志七列回查 ===" -ForegroundColor Cyan
+    Write-Host "=== [4/6] SEC-07 审计日志七列回查 ===" -ForegroundColor Cyan
     # 干净环境没有运行库时 --allow-empty 只跳过数据断言，结构断言（七列是否齐备）仍生效。
     $auditDb = "data\app.db"
     if ($env:CAMPUSCLAW_AUDIT_DB) { $auditDb = $env:CAMPUSCLAW_AUDIT_DB }
@@ -69,11 +69,19 @@ if ($Mode -in @("all", "audit")) {
 }
 
 if ($Mode -in @("all", "observe")) {
-    Write-Host "=== [5/5] 第 10 课运行观测告警判定 ===" -ForegroundColor Cyan
+    Write-Host "=== [5/6] 第 10 课运行观测告警判定 ===" -ForegroundColor Cyan
     # critical 级告警即判红；干净环境没有库时脚本按跳过处理，不影响结论。
     $observeDb = "data\app.db"
     if ($env:CAMPUSCLAW_AUDIT_DB) { $observeDb = $env:CAMPUSCLAW_AUDIT_DB }
     Invoke-Check "scripts\check_observe.py" @("--db", $observeDb, "--out", (Join-Path $evidence "observe.json"))
+    if ($LASTEXITCODE -ne 0) { $failed = 1 }
+}
+
+if ($Mode -in @("all", "compose")) {
+    Write-Host "=== [6/6] 容器配置静态校验（不需要 Docker）===" -ForegroundColor Cyan
+    # compose / Dockerfile 的配置类错误（悬空依赖、COPY 缺源、端口不符、版本越界）
+    # 不需要 Docker 就能查；实跑 `docker compose up` 由人工步骤补。
+    Invoke-Check "scripts\check_compose.py" @("--out", (Join-Path $evidence "compose-static.json"))
     if ($LASTEXITCODE -ne 0) { $failed = 1 }
 }
 
