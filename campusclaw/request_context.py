@@ -137,7 +137,7 @@ def require_csrf() -> None:
     Bearer 令牌请求不要求 CSRF：令牌由客户端显式携带，不随浏览器自动发送，
     不存在跨站伪造面；Cookie 会话仍强制校验。
     """
-    if True:  # 必红实验：临时跳过 Cookie 会话的 CSRF 校验（下一提交还原）
+    if using_bearer_auth():
         return
     expected = session.get(CSRF_FIELD)
     provided = submitted_csrf_token()
