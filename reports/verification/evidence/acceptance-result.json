@@ -1,0 +1,406 @@
+{
+  "summary": {
+    "total": 44,
+    "pass": 42,
+    "fail": 2
+  },
+  "checks": [
+    {
+      "group": "A-正常",
+      "name": "A 班学生发帖",
+      "kind": "正常",
+      "expected": "201 且返回问题 id",
+      "actual": "201 id=1",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "A-正常",
+      "name": "发帖后出现在本班列表",
+      "kind": "正常",
+      "expected": "200 且列表含该帖",
+      "actual": "200 共 1 条，命中=是",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "B-失败",
+      "name": "空标题被拒",
+      "kind": "失败",
+      "expected": "400 QA_TITLE_INVALID",
+      "actual": "400 QA_TITLE_INVALID",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "B-失败",
+      "name": "空正文被拒",
+      "kind": "失败",
+      "expected": "400 QA_BODY_INVALID",
+      "actual": "400 QA_BODY_INVALID",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "B-失败",
+      "name": "读取不存在的问题",
+      "kind": "失败",
+      "expected": "404 NOT_FOUND",
+      "actual": "404 NOT_FOUND",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "B-失败",
+      "name": "采纳不属于该问题的回复",
+      "kind": "失败",
+      "expected": "400 QA_REPLY_NOT_IN_QUESTION",
+      "actual": "400 QA_REPLY_NOT_IN_QUESTION",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "B-失败",
+      "name": "非法分页参数",
+      "kind": "失败",
+      "expected": "400 QA_PAGE_INVALID",
+      "actual": "400 QA_PAGE_INVALID",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "C-越权",
+      "name": "学生采纳回复",
+      "kind": "越权",
+      "expected": "403 ROLE_FORBIDDEN",
+      "actual": "403",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "C-越权",
+      "name": "学生关闭问题",
+      "kind": "越权",
+      "expected": "403 ROLE_FORBIDDEN",
+      "actual": "403",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "C-越权",
+      "name": "学生发布 FAQ",
+      "kind": "越权",
+      "expected": "403 ROLE_FORBIDDEN",
+      "actual": "403 ROLE_FORBIDDEN",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "C-越权",
+      "name": "学生查看教师统计",
+      "kind": "越权",
+      "expected": "403 ROLE_FORBIDDEN",
+      "actual": "403",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S1-仅本班可见",
+      "name": "B 班教师读 A 班帖子",
+      "kind": "越权",
+      "expected": "404（跨班与不存在同码）",
+      "actual": "404 NOT_FOUND",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S1-仅本班可见",
+      "name": "B 班学生读 A 班帖子",
+      "kind": "越权",
+      "expected": "404",
+      "actual": "404",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S1-仅本班可见",
+      "name": "B 班列表不含 A 班帖子",
+      "kind": "正常",
+      "expected": "200 且列表为空",
+      "actual": "200 B 班共 0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S1-仅本班可见",
+      "name": "B 班学生回复 A 班帖子",
+      "kind": "越权",
+      "expected": "404",
+      "actual": "404",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S2-回复与采纳",
+      "name": "教师回复学生帖子",
+      "kind": "正常",
+      "expected": "201",
+      "actual": "201 reply_id=1",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S2-回复与采纳",
+      "name": "回复后状态转 ANSWERED",
+      "kind": "正常",
+      "expected": "ANSWERED",
+      "actual": "200 status=ANSWERED",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S2-回复与采纳",
+      "name": "学生回复教师帖子",
+      "kind": "正常",
+      "expected": "201",
+      "actual": "201 reply_id=2",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S2-回复与采纳",
+      "name": "学生不能伪造教师采纳",
+      "kind": "越权",
+      "expected": "403",
+      "actual": "403 ROLE_FORBIDDEN",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S2-回复与采纳",
+      "name": "教师采纳后状态 ACCEPTED",
+      "kind": "正常",
+      "expected": "200 且 accepted_reply_id 指向该回复",
+      "actual": "200 status=ACCEPTED accepted_reply_id=1",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S3-FAQ可检索",
+      "name": "教师发布 FAQ",
+      "kind": "正常",
+      "expected": "201 且返回 FAQ",
+      "actual": "201 faq_id=1",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S3-FAQ可检索",
+      "name": "FAQ 沉淀为真实材料",
+      "kind": "正常",
+      "expected": "生成 1 份 FAQ 汇总材料",
+      "actual": "material_id=[3]",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S3-FAQ可检索",
+      "name": "本班检索命中 FAQ 内容",
+      "kind": "正常",
+      "expected": "200 且命中 FAQ 汇总材料",
+      "actual": "200 命中 1 条 material=[3] title=['本班 FAQ 汇总（自动生成）']",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S3-FAQ可检索",
+      "name": "命中结果带材料来源可追溯",
+      "kind": "正常",
+      "expected": "每条命中含 material_id 与切片定位",
+      "actual": "字段=['chunk_id', 'chunk_index', 'end_offset', 'excerpt', 'material_id', 'material_url', 'offset_basis', 'score', 'source_mode', 'start_offset', 'title']",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S4-去重",
+      "name": "同一问题重复发布 FAQ",
+      "kind": "失败",
+      "expected": "409 QA_FAQ_EXISTS",
+      "actual": "409 QA_FAQ_EXISTS",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S4-去重",
+      "name": "重复发布不产生重复知识条目",
+      "kind": "正常",
+      "expected": "活跃 FAQ 材料 1 份、知识正文 1 条",
+      "actual": "材料 1 份、知识条目 1 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S4-去重",
+      "name": "编辑 FAQ 不新建材料",
+      "kind": "正常",
+      "expected": "200 且 faq_material_id 不变",
+      "actual": "200 material_id=[3]",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S4-去重",
+      "name": "编辑 FAQ 不新增知识条目",
+      "kind": "正常",
+      "expected": "knowledge_entries 仍为 1 条",
+      "actual": "1 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "发布第二条 FAQ（触发重建任务）",
+      "kind": "正常",
+      "expected": "201",
+      "actual": "201 faq_id=2",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "FAQ 变更后入队索引任务",
+      "kind": "正常",
+      "expected": "FAQ 汇总材料存在待处理任务",
+      "actual": "任务分布=[{'material_id': 1, 'status': 'done', 'n': 1}, {'material_id': 2, 'status': 'done', 'n': 1}, {'material_id': 3, 'status': 'done', 'n': 1}, {'material_id': 3, 'status': 'queued', 'n': 1}]",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "零模型下 worker 记录失败状态",
+      "kind": "失败",
+      "expected": "material_index.status = failed 且 last_error 有值",
+      "actual": "exit=0 status=failed err=ModelUnavailable",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "索引失败保留材料与正文",
+      "kind": "正常",
+      "expected": "材料仍 active、知识正文非空",
+      "actual": "材料 status=active、正文 182 字符",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "未索引内容不谎称可检索",
+      "kind": "正常",
+      "expected": "检索不命中（如实反映未就绪）",
+      "actual": "200 命中 0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "一次失败不影响既有 FAQ 检索",
+      "kind": "正常",
+      "expected": "第一条 FAQ 仍可命中",
+      "actual": "200 命中 1 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "重启后自动重建索引（恢复路径）",
+      "kind": "正常",
+      "expected": "status 回到 ready 且内容可检索",
+      "actual": "status=failed gen=1",
+      "verdict": "FAIL",
+      "evidence": ""
+    },
+    {
+      "group": "S5-失败可重建",
+      "name": "恢复后第二条 FAQ 可检索",
+      "kind": "正常",
+      "expected": "命中 1 条以上",
+      "actual": "200 命中 0 条",
+      "verdict": "FAIL",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "回复无孤儿记录",
+      "kind": "数据",
+      "expected": "0 条孤儿回复",
+      "actual": "0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "采纳关系指向本问题的回复",
+      "kind": "数据",
+      "expected": "0 条错配",
+      "actual": "0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "ACCEPTED 必有采纳记录",
+      "kind": "数据",
+      "expected": "0 条矛盾",
+      "actual": "0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "知识正文与材料班级一致",
+      "kind": "数据",
+      "expected": "0 条跨班错配",
+      "actual": "0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "检索切片与材料班级一致",
+      "kind": "数据",
+      "expected": "0 条跨班切片",
+      "actual": "0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "FAQ 发布人属于本班",
+      "kind": "数据",
+      "expected": "0 条跨班发布",
+      "actual": "0 条",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "统计数字与库内一致",
+      "kind": "数据",
+      "expected": "total = 库内 3，且三分项之和等于 total",
+      "actual": "total=3 分项=[1, 2, 0] 和=3",
+      "verdict": "PASS",
+      "evidence": ""
+    },
+    {
+      "group": "D-数据一致性",
+      "name": "FAQ 保留操作人与时间",
+      "kind": "数据",
+      "expected": "created_by 与 created_at 均非空",
+      "actual": "created_by=1 created_at=2026-11-10T14:28:23.965875Z",
+      "verdict": "PASS",
+      "evidence": ""
+    }
+  ],
+  "worker_output": "WARNING:__main__:Index task 4 failed: ModelUnavailable\nD:\\campus-claw\\.venv\\Lib\\site-packages\\qdrant_client\\qdrant_remote.py:292: UserWarning: Failed to obtain server version. Unable to check client-server compatibility. Set check_compatibility=False to skip version check.\n  show_warning(\n"
+}

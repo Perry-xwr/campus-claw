@@ -1,0 +1,58 @@
+# 第 10 课判据「推送即构建」：把 make check 的等效入口挂到每次推送。
+#
+# 与本地 `make check` 一一对应：
+#   check-security  → SEC-05 密钥扫描 + SEC-06 依赖基线
+#   check-async     → 第 8 课三条判据
+#   check-apitest   → 第 9 课注入三件套
+#   check-audit     → SEC-07 审计七列结构断言
+#
+# 任一步非零退出即整体失败，主干因此进不去坏提交。
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gate:
+    name: 门禁（安全 / 异步 / 注入 / 审计）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 安装依赖（按锁文件，验证可复现）
+        run: uv sync --locked
+
+      - name: SEC-05 密钥扫描 + SEC-06 依赖基线
+        run: uv run python scripts/check_security.py --out reports/evidence/security-baseline.json
+
+      - name: 第 8 课三条判据
+        run: uv run python scripts/acceptance_async.py --out reports/evidence/async-acceptance.json
+
+      - name: 第 9 课注入三件套
+        run: uv run python apitest/run_all.py --no-report
+
+      - name: SEC-07 审计七列结构断言
+        run: >-
+          uv run python scripts/audit_recheck.py
+          --db data/app.db --out reports/audit-recheck.md --allow-empty
+
+      - name: 归档证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-evidence
+          path: |
+            reports/evidence/
+            reports/audit-recheck.md
+          if-no-files-found: warn

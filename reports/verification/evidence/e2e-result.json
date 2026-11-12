@@ -1,0 +1,442 @@
+{
+  "generated_at": "2026-11-10T22:21:05",
+  "summary": {
+    "total": 54,
+    "pass": 54,
+    "fail": 0
+  },
+  "checks": [
+    {
+      "group": "A-健康检查",
+      "name": "GET /health",
+      "expected": "200 status=ok",
+      "actual": "200 ok",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "A-健康检查",
+      "name": "匿名访问 /materials",
+      "expected": "302 重定向登录页",
+      "actual": "302",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "A-健康检查",
+      "name": "匿名访问 /api/materials",
+      "expected": "401 AUTH_REQUIRED",
+      "actual": "401 AUTH_REQUIRED",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "A-健康检查",
+      "name": "OpenAPI 文档",
+      "expected": "200 且 paths>=30",
+      "actual": "200 paths=40",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "登录 teacher_a",
+      "expected": "200 且返回 token",
+      "actual": "200 token=有",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "登录 student_a1",
+      "expected": "200 且返回 token",
+      "actual": "200 token=有",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "登录 student_b1",
+      "expected": "200 且返回 token",
+      "actual": "200 token=有",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "登录 teacher_b",
+      "expected": "200 且返回 token",
+      "actual": "200 token=有",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "错误口令登录",
+      "expected": "401",
+      "actual": "401 INVALID_CREDENTIALS",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "GET /api/me 身份",
+      "expected": "200 role=teacher class=A",
+      "actual": "200 role=teacher class=A",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "B-认证",
+      "name": "学生访问教师接口",
+      "expected": "403 ROLE_FORBIDDEN",
+      "actual": "403 ROLE_FORBIDDEN",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "C-CSRF",
+      "name": "Cookie 会话登录",
+      "expected": "200",
+      "actual": "200",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "C-CSRF",
+      "name": "写接口缺 CSRF 令牌",
+      "expected": "403",
+      "actual": "403",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "C-CSRF",
+      "name": "写接口带 CSRF 令牌",
+      "expected": "200/201",
+      "actual": "200 token=有",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "教师上传 .md",
+      "expected": "201 且返回 material_id",
+      "actual": "201 id=3",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "上传后本班列表可见",
+      "expected": "2 条",
+      "actual": "2 条",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "同班学生可读材料",
+      "expected": "200",
+      "actual": "200",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "跨班读取材料",
+      "expected": "404 MATERIAL_NOT_FOUND",
+      "actual": "404 MATERIAL_NOT_FOUND",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "跨班查索引状态",
+      "expected": "404",
+      "actual": "404",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "学生上传被拒",
+      "expected": "403 ROLE_FORBIDDEN",
+      "actual": "403 ROLE_FORBIDDEN",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "拒绝非 txt/md 扩展名",
+      "expected": "400/415",
+      "actual": "415 UNSUPPORTED_FILE_TYPE",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "教师改标题",
+      "expected": "200 且标题更新",
+      "actual": "200 title=验证用材料-改名",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "D-材料",
+      "name": "新上传材料索引状态（观察）",
+      "expected": "记录实际状态",
+      "actual": "200 {\"active_generation\": 0, \"last_error\": null, \"material_id\": 3, \"status\": \"pending\", \"updated_at\": \"2026-11-10T14:21:02.395411Z\"}",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "E-检索",
+      "name": "关键词检索命中且带来源",
+      "expected": "200 且含 material_id/chunk/区间/链接",
+      "actual": "200 hits=1 字段齐全=True",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "E-检索",
+      "name": "检索结果限本班",
+      "expected": "0 条跨班命中",
+      "actual": "0 条越界",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "E-检索",
+      "name": "B 班搜索 A 班专属标记",
+      "expected": "无 A 班材料命中",
+      "actual": "hits=0 越界=0",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "E-检索",
+      "name": "未配嵌入时 vector 模式",
+      "expected": "503 RETRIEVAL_UNAVAILABLE",
+      "actual": "503 RETRIEVAL_UNAVAILABLE",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "E-检索",
+      "name": "空查询校验",
+      "expected": "400 INVALID_QUERY",
+      "actual": "400 INVALID_QUERY",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "E-检索",
+      "name": "limit 越界校验",
+      "expected": "400",
+      "actual": "400",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "F-助手",
+      "name": "创建会话",
+      "expected": "201 且返回会话 id",
+      "actual": "201 id=1",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "F-助手",
+      "name": "SSE 流式回答",
+      "expected": "200 且有多条 SSE 事件",
+      "actual": "200 events=7 retrieval_mode=None",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "F-助手",
+      "name": "删除会话",
+      "expected": "200/204",
+      "actual": "204",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "F-助手",
+      "name": "会话列表可读",
+      "expected": "200",
+      "actual": "200",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "学生提问",
+      "expected": "201 OPEN",
+      "actual": "201 id=2 status=OPEN",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "回复后状态 ANSWERED",
+      "expected": "状态 ANSWERED",
+      "actual": "201 status=ANSWERED reply_id=1",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "教师采纳后 ACCEPTED",
+      "expected": "状态 ACCEPTED",
+      "actual": "200 status=ACCEPTED",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "教师关闭后 CLOSED",
+      "expected": "状态 CLOSED",
+      "actual": "200 status=CLOSED",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "跨班读问题",
+      "expected": "404",
+      "actual": "404",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "统计恒等式",
+      "expected": "pending+resolved+closed_unresolved == total",
+      "actual": "total=2 分项和=2",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "G-答疑",
+      "name": "FAQ 发布沉淀为材料",
+      "expected": "201 且本班材料新增 FAQ 材料",
+      "actual": "201 材料数=3",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "H-异步",
+      "name": "提交返回 202 且不含评分",
+      "expected": "202 + task_id，无评分字段",
+      "actual": "202 task_id=task_588c2121fa10c4ea 含评分=False",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "H-异步",
+      "name": "消费者执行后完成",
+      "expected": "状态 succeeded",
+      "actual": "200 status=succeeded worker_exit=0",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "H-异步",
+      "name": "重复提交幂等",
+      "expected": "同一 task_id task_588c2121fa10c4ea",
+      "actual": "第二次=task_588c2121fa10c4ea",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "H-异步",
+      "name": "拒绝合同外字段",
+      "expected": "400 TASK_INPUT_INVALID",
+      "actual": "400 TASK_INPUT_INVALID",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "H-异步",
+      "name": "跨班查任务",
+      "expected": "404",
+      "actual": "404",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "H-异步",
+      "name": "队列观测接口",
+      "expected": "200 含 pending/dead 等指标",
+      "actual": "200 keys=['avg_duration_ms', 'dead', 'failed', 'pending', 'results', 'running']",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "MCP 服务健康",
+      "expected": "200 service=campus-tools",
+      "actual": "200 campus-tools",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "MCP 无令牌被拒",
+      "expected": "401",
+      "actual": "401",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "学生登记 MCP 被拒",
+      "expected": "403",
+      "actual": "403 ROLE_FORBIDDEN",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "教师登记 MCP 服务器",
+      "expected": "201 且返回 id",
+      "actual": "201 id=1 回显令牌=False",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "连接并发现工具",
+      "expected": "200 且 >=2 个工具",
+      "actual": "200 tools=['formula_hint', 'unit_convert']",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "工具清单缓存",
+      "expected": "200 且缓存非空",
+      "actual": "200 n=2",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "I-MCP",
+      "name": "调用审计接口",
+      "expected": "200",
+      "actual": "200",
+      "verdict": "PASS",
+      "detail": ""
+    },
+    {
+      "group": "J-严格模式",
+      "name": "缺密钥时拒绝启动",
+      "expected": "非零退出",
+      "actual": "exit=2",
+      "verdict": "PASS",
+      "detail": "[campusclaw] 启动失败：缺少必需的环境变量 SECRET_KEY：请设置非空白的服务端密钥后重新启动。\n"
+    }
+  ]
+}

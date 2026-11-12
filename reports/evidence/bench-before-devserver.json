@@ -1,0 +1,87 @@
+{
+  "generated_at": "2026-11-12T10:31:39+0800",
+  "base": "http://127.0.0.1:8100",
+  "vus": 20,
+  "duration_s": 60.0,
+  "endpoints": [
+    {
+      "name": "健康检查",
+      "method": "GET",
+      "path": "/health",
+      "vus": 20,
+      "duration_s": 60.11,
+      "requests": 10151,
+      "rps": 168.9,
+      "errors": 0,
+      "error_rate": 0.0,
+      "status_counts": {
+        "200": 10151
+      },
+      "p50_ms": 117.34,
+      "p95_ms": 125.84,
+      "p99_ms": 135.14,
+      "mean_ms": 118.31,
+      "max_ms": 146.33
+    },
+    {
+      "name": "材料列表",
+      "method": "GET",
+      "path": "/api/materials",
+      "vus": 20,
+      "duration_s": 60.1,
+      "requests": 8152,
+      "rps": 135.6,
+      "errors": 2015,
+      "error_rate": 0.2472,
+      "status_counts": {
+        "0": 2015,
+        "200": 6137
+      },
+      "p50_ms": 112.6,
+      "p95_ms": 292.43,
+      "p99_ms": 320.38,
+      "mean_ms": 147.3,
+      "max_ms": 370.56
+    },
+    {
+      "name": "关键词检索",
+      "method": "POST",
+      "path": "/api/search",
+      "vus": 20,
+      "duration_s": 60.12,
+      "requests": 9418,
+      "rps": 156.7,
+      "errors": 4,
+      "error_rate": 0.0004,
+      "status_counts": {
+        "0": 4,
+        "200": 9414
+      },
+      "p50_ms": 124.98,
+      "p95_ms": 142.91,
+      "p99_ms": 158.06,
+      "mean_ms": 127.51,
+      "max_ms": 172.19
+    },
+    {
+      "name": "会话列表",
+      "method": "GET",
+      "path": "/api/conversations",
+      "vus": 20,
+      "duration_s": 60.1,
+      "requests": 8671,
+      "rps": 144.3,
+      "errors": 1808,
+      "error_rate": 0.2085,
+      "status_counts": {
+        "0": 1808,
+        "200": 6863
+      },
+      "p50_ms": 109.4,
+      "p95_ms": 273.01,
+      "p99_ms": 347.75,
+      "mean_ms": 138.49,
+      "max_ms": 377.65
+    }
+  ]
+}

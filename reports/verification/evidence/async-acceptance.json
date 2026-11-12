@@ -1,0 +1,101 @@
+{
+  "generated_at": "2026-11-10T14:16:58+00:00",
+  "environment": {
+    "python": "3.11.18",
+    "home": "<隔离临时目录，运行后清理>",
+    "task_delay_ms": 250,
+    "consumer": "python -m campusclaw.task_worker --once",
+    "broker": "SQLite 任务表 + 独立消费者进程（课件 queue.html 允许的实现）"
+  },
+  "criteria": [
+    {
+      "id": "判据一",
+      "name": "请求不再等待执行",
+      "operation": "消费者停止状态下连续提交 20 次，逐次记录提交响应时间；随后启动消费者一次性执行完 20 条任务测单次执行耗时",
+      "observable": {
+        "submit_p95_ms": 27.16,
+        "submit_min_ms": 12.34,
+        "submit_max_ms": 35.93,
+        "one_execution_ms": 265.65,
+        "ratio": 9.8,
+        "all_202_with_task_id_and_no_score": true,
+        "worker_exit_code": 0
+      },
+      "expected": "提交 P95 显著小于一次批改执行时间，且响应体不含评分结果",
+      "verdict": "绿"
+    },
+    {
+      "id": "判据二",
+      "name": "任务不因进程终止而丢失",
+      "operation": "消费者未运行时提交并连续查询 3 次；随后启动消费者，轮询直至终态",
+      "observable": {
+        "submit_status_code": 202,
+        "task_id": "task_c02d99def16b0aea",
+        "before_consumer": [
+          {
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "status": "pending",
+            "attempts": 0
+          }
+        ],
+        "state_sequence": [
+          "pending",
+          "running",
+          "succeeded"
+        ],
+        "final_status": "succeeded",
+        "final_attempts": 1,
+        "result_present": true,
+        "required_resubmit": false,
+        "worker_log_tail": [
+          "2026-11-10 22:17:07,801 INFO task=task_c02d99def16b0aea status=succeeded attempts=1 result_written=True"
+        ]
+      },
+      "expected": "提交返回成功、状态停留 pending 且 attempts 不增；消费者启动后自动执行，无需重新提交",
+      "verdict": "绿"
+    },
+    {
+      "id": "判据三",
+      "name": "重复不产生重复结果",
+      "operation": "同一份提交连发两次；任务完成后把状态放回 pending 模拟代理重复投递，再执行一次消费者",
+      "observable": {
+        "first_task_id": "task_d5d3db457565f58b",
+        "second_task_id": "task_d5d3db457565f58b",
+        "same_task_id": true,
+        "result_rows_for_submission": 1,
+        "attempts_after_redelivery": 2,
+        "score_before": 74,
+        "score_after": 74
+      },
+      "expected": "结果表中该提交只有一条生效记录，attempts 增加而评分不变",
+      "verdict": "绿"
+    }
+  ],
+  "checks": {
+    "status_api_readonly": true,
+    "cross_class_returns": 404,
+    "cross_class_expected": 404,
+    "observations": {
+      "avg_duration_ms": 266.68,
+      "dead": 0,
+      "failed": 0,
+      "pending": 0,
+      "results": 22,
+      "running": 0,
+      "succeeded": 22,
+      "total_attempts": 23
+    }
+  },
+  "summary": {
+    "total": 3,
+    "green": 3,
+    "red": 0
+  }
+}

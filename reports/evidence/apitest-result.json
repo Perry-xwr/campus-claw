@@ -1,0 +1,97 @@
+{
+  "summary": {
+    "total": 8,
+    "pass": 8,
+    "fail": 0
+  },
+  "checks": [
+    {
+      "name": "XSS 前置：注入内容成功入库",
+      "kind": "正常",
+      "premise": "teacher_a 已登录，可上传讲义",
+      "action": "POST /api/materials/upload，title = <img src=x onerror=alert('XSS_PROBE_9A')>",
+      "expected": "HTTP 201，返回 material_id（内容入库才能验证输出位置）",
+      "actual": "HTTP 201，material_id=3",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/materials/upload/POST.py",
+      "endpoint": "POST /api/materials/upload"
+    },
+    {
+      "name": "XSS：列表页源码已转义",
+      "kind": "反例",
+      "premise": "Cookie 会话登录成功（HTTP 302）；列表页 /materials 渲染全部讲义标题",
+      "action": "打开 /materials，检查页面源码中该标题的出现形式",
+      "expected": "标题以 &lt;img 形式出现，源码中不存在可执行的 <img src=x onerror=",
+      "actual": "HTTP 200，页面 含转义形式 &lt;img，不存在原始可执行标签",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/materials/upload/POST.py",
+      "endpoint": "POST /api/materials/upload"
+    },
+    {
+      "name": "CSRF 前置：Cookie 会话建立且带 SameSite",
+      "kind": "反例",
+      "premise": "GET /login 取令牌 → POST /login 建立会话",
+      "action": "检查登录响应的 Set-Cookie 属性",
+      "expected": "HTTP 302/200，且会话 Cookie 带 SameSite 属性（浏览器侧第一道）",
+      "actual": "HTTP 302；Set-Cookie 含 SameSite=Lax",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/prompt/PUT.py",
+      "endpoint": "PUT /api/prompt"
+    },
+    {
+      "name": "CSRF：缺令牌的写请求被拒",
+      "kind": "反例",
+      "premise": "Cookie 会话有效；已取到一次性令牌（长度 43），但本次故意不带",
+      "action": "PUT /api/prompt {\"body\": \"CSRF_PROBE_9B 伪造写入\"}，仅携带 Cookie，无 X-CSRF-Token",
+      "expected": "HTTP 403，错误码 CSRF_INVALID",
+      "actual": "HTTP 403，错误码 CSRF_INVALID",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/prompt/PUT.py",
+      "endpoint": "PUT /api/prompt"
+    },
+    {
+      "name": "CSRF：被拒请求无写入副作用",
+      "kind": "反例",
+      "premise": "上一步的伪造请求已被拒",
+      "action": "GET /api/prompt 比对被拒前后的正文",
+      "expected": "正文与拒绝前完全一致",
+      "actual": "正文未变",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/prompt/PUT.py",
+      "endpoint": "PUT /api/prompt"
+    },
+    {
+      "name": "CSRF：带正确令牌的写请求放行",
+      "kind": "正常",
+      "premise": "同一 Cookie 会话，补上服务端签发的一次性令牌",
+      "action": "PUT /api/prompt，携带 X-CSRF-Token（长度 43）",
+      "expected": "HTTP 200 且正文更新——证明挡住上一步的确实是令牌校验，而非其他判定",
+      "actual": "HTTP 200，正文已更新",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/prompt/PUT.py",
+      "endpoint": "PUT /api/prompt"
+    },
+    {
+      "name": "前置：本班正常词可检索",
+      "kind": "正常",
+      "premise": "teacher_a 已登录；关键词索引就绪",
+      "action": "POST /api/search {\"query\": \"A_ONLY_SEED\", \"mode\": \"keyword\"}",
+      "expected": "HTTP 200 且命中至少 1 条",
+      "actual": "HTTP 200，命中 1 条",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/search/POST.py",
+      "endpoint": "POST /api/search"
+    },
+    {
+      "name": "SQL 注入：检索词提交恒真条件",
+      "kind": "反例",
+      "premise": "teacher_a 已登录；检索词字段为唯一注入点",
+      "action": "POST /api/search {\"query\": \"' OR '1'='1\", \"mode\": \"keyword\", \"limit\": 50}",
+      "expected": "HTTP 200 且 0 命中，或 HTTP 4xx 格式错误；不得返回全表数据",
+      "actual": "HTTP 400，错误码 INVALID_QUERY，请求被拒",
+      "verdict": "PASS",
+      "file": "apitest/cases/api/search/POST.py",
+      "endpoint": "POST /api/search"
+    }
+  ]
+}

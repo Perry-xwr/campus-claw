@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T10:39:14+00:00",
+  "generated_at": "2026-11-12T02:36:01+00:00",
   "sec05": {
     "patterns": [
       "OpenAI 兼容 API 密钥",
@@ -8,32 +8,22 @@
       "硬编码凭据"
     ],
     "placeholder_filter": "跳过 xxx / ... / example / synthetic / ${...} 等占位与合成值",
-    "commits_scanned": 10,
+    "commits_scanned": 0,
     "files_scanned": {
-      "前端产物": 139,
-      "运行日志": 6
+      "前端产物": 55,
+      "运行日志": 1
     },
     "hit_count": 0,
     "hits": [],
-    "demo_constant_count": 2,
-    "demo_constants": [
+    "demo_constant_count": 0,
+    "demo_constants": [],
+    "demo_disposition": "公开演示/测试固定常量（文档示例令牌、验收脚本固定 SECRET_KEY），非第三方密钥、不随仓库外发，逐条登记且不计入密钥明文命中；真实模型密钥只存于本机 .env，已 gitignore 且从未进入提交历史。",
+    "errors": [
       {
-        "scope": "前端产物/运行日志",
-        "file": "docs/上手教程.md",
-        "line_no": 537,
-        "kind": "硬编码凭据",
-        "line": "`$env:MCP_AUTH_TOKEN = \"campusclaw-mcp-demo-token\"`（缺令牌会直接启动失败，退出码 2）。"
-      },
-      {
-        "scope": "前端产物/运行日志",
-        "file": "scripts/acceptance_compose.py",
-        "line_no": 71,
-        "kind": "硬编码凭据",
-        "line": "SECRET_KEY = \"campusclaw-verify-secret-key-0123456789abcdef\""
+        "scope": "提交历史",
+        "error": "git 不可用，未能扫描全量历史"
       }
     ],
-    "demo_disposition": "公开演示/测试固定常量（文档示例令牌、验收脚本固定 SECRET_KEY），非第三方密钥、不随仓库外发，逐条登记且不计入密钥明文命中；真实模型密钥只存于本机 .env，已 gitignore 且从未进入提交历史。",
-    "errors": [],
     "verdict": "绿"
   },
   "sec06": {
@@ -43,12 +33,12 @@
     "declared": [
       {
         "name": "Flask",
-        "version": "3.1.1",
+        "version": "3.1.3",
         "source": "requirements.txt"
       },
       {
         "name": "Werkzeug",
-        "version": "3.1.8",
+        "version": "3.1.9",
         "source": "requirements.txt"
       },
       {
@@ -99,7 +89,7 @@
       },
       {
         "name": "Flask",
-        "version": "3.1.1"
+        "version": "3.1.3"
       },
       {
         "name": "langchain-mcp-adapters",
@@ -127,7 +117,7 @@
       },
       {
         "name": "Werkzeug",
-        "version": "3.1.8"
+        "version": "3.1.9"
       }
     ],
     "high": null,

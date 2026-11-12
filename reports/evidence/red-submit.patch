@@ -1,0 +1,142 @@
+diff --git a/campusclaw/request_context.py b/campusclaw/request_context.py
+index 16f3668..8eed983 100644
+--- a/campusclaw/request_context.py
++++ b/campusclaw/request_context.py
+@@ -5,14 +5,19 @@
+ 
+ from __future__ import annotations
+ 
++import logging
+ import sqlite3
++import time
++import uuid
+ from typing import Any, Mapping
+ 
+ from flask import Flask, g, jsonify, redirect, request, session, url_for
+ 
+-from campusclaw import db as dbmod, security, sessions
++from campusclaw import audit_db, db as dbmod, metrics, security, sessions
+ from campusclaw.errors import MESSAGES, ApiError, error_body
+ 
++logger = logging.getLogger(__name__)
++
+ IDENTITY_FIELDS = frozenset({"class_id", "role", "user_id", "uploaded_by"})
+ 
+ CSRF_HEADER = "X-CSRF-Token"
+@@ -132,7 +137,7 @@ def require_csrf() -> None:
+     Bearer 令牌请求不要求 CSRF：令牌由客户端显式携带，不随浏览器自动发送，
+     不存在跨站伪造面；Cookie 会话仍强制校验。
+     """
+-    if using_bearer_auth():
++    if True:  # 必红实验：临时跳过 Cookie 会话的 CSRF 校验
+         return
+     expected = session.get(CSRF_FIELD)
+     provided = submitted_csrf_token()
+@@ -189,6 +194,8 @@ def register_page_redirect(app: Flask) -> None:
+ 
+     @app.errorhandler(ApiError)
+     def _handle(exc: ApiError):
++        # SEC-07：拒绝也要留痕，先记审计再返回响应。
++        audit_rejected_request(exc.status, exc.code, exc.message)
+         if exc.status == 302 and not _is_api_request():
+             session.pop("sid", None)
+             return redirect(url_for("auth.login_page"))
+@@ -206,3 +213,98 @@ def upload_identity_check(form: Mapping[str, Any]) -> None:
+             raise ApiError(
+                 400, "IDENTITY_FIELD_FORBIDDEN", MESSAGES["IDENTITY_FIELD_FORBIDDEN"]
+             )
++
++
++# ---------------------------------------------------------------------------
++# 第 9 课 SEC-07：请求标识与拒绝审计
++#
++# 课件要求「失败的尝试也要记」：401 / 403 / 404 正是越权与探测的证据。
++# 这里在统一错误出口处落一条结构化事件，best-effort，失败不影响响应。
++# ---------------------------------------------------------------------------
++
++REQUEST_ID_HEADER = "X-Request-Id"
++
++
++def register_request_tracking(app: Flask) -> None:
++    """为每个请求生成贯穿全链路的 request_id，并回写到响应头。"""
++
++    @app.before_request
++    def _assign_request_id() -> None:
++        incoming = (request.headers.get(REQUEST_ID_HEADER) or "").strip()
++        # 客户端可带，但一律截断：不能让外部输入撑坏日志字段或撑爆内存。
++        g.request_id = (incoming[:64] if incoming else f"req-{uuid.uuid4().hex[:12]}")
++        g.request_started = time.perf_counter()
++
++    @app.after_request
++    def _echo_request_id(response):
++        request_id = getattr(g, "request_id", "")
++        if request_id:
++            response.headers.setdefault(REQUEST_ID_HEADER, request_id)
++        # 第 10 课：把本次请求计入指标；/metrics 自身不计数，避免抓取把曲线拉平。
++        if not (request.path or "").startswith("/metrics"):
++            try:
++                metrics.observe_from_g(g, response.status_code)
++            except Exception:  # pragma: no cover - 指标失败绝不影响响应
++                logger.exception("记录请求指标失败")
++        return response
++
++
++def _request_duration_ms() -> int | None:
++    started = getattr(g, "request_started", None)
++    if started is None:
++        return None
++    return int(round((time.perf_counter() - started) * 1000))
++
++
++def _actor_snapshot() -> tuple[int | None, str, int | None]:
++    """取当前操作人；未认证或被拒绝的请求没有身份，返回空值而不是抛错。"""
++    try:
++        user = current_user()
++    except Exception:  # pragma: no cover - 身份解析异常不得影响审计出口
++        return None, "", None
++    if not user:
++        return None, "", None
++    try:
++        actor_id = int(user["id"])
++    except (KeyError, TypeError, ValueError):
++        actor_id = None
++    try:
++        class_id = int(user["class_id"])
++    except (KeyError, TypeError, ValueError):
++        class_id = None
++    return actor_id, str(user.get("username") or ""), class_id
++
++
++def audit_rejected_request(status: int, code: str, detail: str = "") -> None:
++    """把一次被拒绝的请求记入 audit_events。
++
++    只记认证/授权类拒绝（401/403）与跨班不可见（404）：这三类是攻击证据；
++    参数校验类 400 数量大、价值低，不在此列，避免日志被噪声淹没。
++    同一请求最多记一次（错误处理器可能被叠加注册）。
++    """
++    try:
++        if status not in audit_db.REJECT_STATUSES:
++            return
++        if getattr(g, "_audit_rejection_logged", False):
++            return
++        g._audit_rejection_logged = True
++        actor_id, actor, class_id = _actor_snapshot()
++        audit_db.record_event(
++            get_conn(),
++            status=status,
++            code=code,
++            action="api.reject",
++            actor=actor,
++            actor_id=actor_id,
++            class_id=class_id,
++            object_type="api",
++            object_id=f"{request.method} {request.path}",
++            method=request.method,
++            path=request.path,
++            request_id=str(getattr(g, "request_id", "") or ""),
++            duration_ms=_request_duration_ms(),
++            detail=detail,
++        )
++    except Exception:
++        # 审计不得影响主流程：磁盘满、表缺失等一律降级为应用日志。
++        logger.exception("写入拒绝审计失败：%s %s", status, code)

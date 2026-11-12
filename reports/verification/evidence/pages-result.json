@@ -1,0 +1,36 @@
+{
+  "anonymous": {
+    "/qa": 302,
+    "/qa/faq": 302,
+    "/qa/stats": 302,
+    "/materials": 302,
+    "/tutor": 302,
+    "/swagger/index.html": 200
+  },
+  "authed": {
+    "/qa": [
+      200,
+      23619
+    ],
+    "/qa/faq": [
+      200,
+      25581
+    ],
+    "/qa/stats": [
+      200,
+      23903
+    ],
+    "/materials": [
+      200,
+      27548
+    ],
+    "/tutor": [
+      200,
+      36405
+    ],
+    "/swagger/index.html": [
+      200,
+      2931
+    ]
+  }
+}

@@ -1,0 +1,135 @@
+[
+  {
+    "name": "页面 /materials",
+    "expected": "200",
+    "actual": "200 (28723B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /knowledge",
+    "expected": "200",
+    "actual": "200 (27153B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /tutor",
+    "expected": "200",
+    "actual": "200 (36405B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /tutor/settings",
+    "expected": "200",
+    "actual": "200 (32247B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /mcp",
+    "expected": "200",
+    "actual": "200 (31532B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /qa",
+    "expected": "200",
+    "actual": "200 (23076B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /qa/faq",
+    "expected": "200",
+    "actual": "200 (23554B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /qa/stats",
+    "expected": "200",
+    "actual": "200 (23193B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /swagger/index.html",
+    "expected": "200",
+    "actual": "200 (2931B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "页面 /openapi.json",
+    "expected": "200",
+    "actual": "200 (75627B)",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "匿名 /tutor",
+    "expected": "302",
+    "actual": "200",
+    "verdict": "FAIL",
+    "detail": ""
+  },
+  {
+    "name": "匿名 /qa/stats",
+    "expected": "302",
+    "actual": "200",
+    "verdict": "FAIL",
+    "detail": ""
+  },
+  {
+    "name": "匿名 /mcp",
+    "expected": "302",
+    "actual": "200",
+    "verdict": "FAIL",
+    "detail": ""
+  },
+  {
+    "name": "上传新材料",
+    "expected": "201",
+    "actual": "201 id=5",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "上传后索引状态",
+    "expected": "200",
+    "actual": "200 pending",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "运行索引 worker（无模型配置）",
+    "expected": "记录实际结果",
+    "actual": "exit=0",
+    "verdict": "PASS",
+    "detail": "_client\\qdrant_remote.py:292: UserWarning: Failed to obtain server version. Unable to check client-server compatibility. Set check_compatibility=False to skip version check.\n  show_warning(\nWARNING:__main__:Index task 4 failed: ModelUnavailable\nWARNING:__main__:Index task 5 failed: ModelUnavailable\n"
+  },
+  {
+    "name": "worker 后索引状态",
+    "expected": "记录实际结果",
+    "actual": "failed err=ModelUnavailable",
+    "verdict": "PASS",
+    "detail": ""
+  },
+  {
+    "name": "零模型下新材料可检索",
+    "expected": "命中新上传材料",
+    "actual": "0 条 []",
+    "verdict": "FAIL",
+    "detail": ""
+  },
+  {
+    "name": "种子材料仍可检索",
+    "expected": "命中种子材料",
+    "actual": "1 条",
+    "verdict": "PASS",
+    "detail": ""
+  }
+]

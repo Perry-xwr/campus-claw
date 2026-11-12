@@ -1,0 +1,32 @@
+{
+  "GET /health": {
+    "mean_ms": 10.44,
+    "p95_ms": 18.62,
+    "max_ms": 22.08,
+    "status": 200
+  },
+  "GET /api/materials": {
+    "mean_ms": 6.79,
+    "p95_ms": 15.11,
+    "max_ms": 16.18,
+    "status": 200
+  },
+  "POST /api/search(keyword)": {
+    "mean_ms": 6.95,
+    "p95_ms": 13.82,
+    "max_ms": 18.75,
+    "status": 200
+  },
+  "POST /api/qa/questions(列表)": {
+    "mean_ms": 9.74,
+    "p95_ms": 16.77,
+    "max_ms": 16.91,
+    "status": 200
+  },
+  "GET /api/tasks/observations": {
+    "mean_ms": 10.68,
+    "p95_ms": 17.52,
+    "max_ms": 17.89,
+    "status": 200
+  }
+}
