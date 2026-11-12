@@ -45,12 +45,17 @@
 | 7 | `f73a73e` | 还原 CSRF | success | 28s | — |
 | 8 | `3283417` | 补齐课件归档与口径下调 | success | 38s | — |
 | **9** | **`53e8636`** | **B 档：镜像 + 曲线 + 缓存 + 轻量端** | **success** | **1m53s** | — |
+| 10 | `519cf79` | 报告口径改为 4/1/1 | success | 1m36s | 28.7 KB |
 
 运行页：
 [run #6（红）](https://github.com/Perry-xwr/campus-claw/actions/runs/43248188556) ·
 [run #7（绿）](https://github.com/Perry-xwr/campus-claw/actions/runs/43248376283) ·
 [run #9（产出镜像）](https://github.com/Perry-xwr/campus-claw/actions/runs/43256692919) ·
+[run #10（纯文档）](https://github.com/Perry-xwr/campus-claw/actions/runs/43259012680) ·
 [全部运行](https://github.com/Perry-xwr/campus-claw/actions)
+
+> 这张表停在 run #10。此后的纯文档提交仍走同一流程（运行页可查），不再逐次补行——
+> 表格的用途是「证明编号能反查提交」，不是流水账。
 
 **run #6 是刻意的红**：本地把 CSRF 校验改坏、`make check` 退出码 1，推送后 CI 同样
 failure。这同时满足课件第 ③ 步的另一半要求「本地红则推送也失败」，四样齐的完整
