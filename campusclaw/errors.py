@@ -84,9 +84,23 @@ def raise_api(code: str, status: int, message: str | None = None) -> None:
     raise ApiError(status, code, message or MESSAGES.get(code, code))
 
 
+def _audit_rejection(status: int, code: str, message: str) -> None:
+    """SEC-07：把被拒绝的请求交给审计层；审计层自身失败不影响响应。
+
+    延迟导入避免 errors ↔ request_context 的循环依赖。
+    """
+    try:
+        from campusclaw.request_context import audit_rejected_request
+
+        audit_rejected_request(status, code, message)
+    except Exception:
+        pass
+
+
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(ApiError)
     def _api_error(exc: ApiError) -> tuple[Response, int]:
+        _audit_rejection(exc.status, exc.code, exc.message)
         return jsonify(error_body(exc.code, exc.message)), exc.status
 
     @app.errorhandler(413)
@@ -106,6 +120,7 @@ def register_error_handlers(app: Flask) -> None:
             code = "INVALID_INPUT"
         else:
             code = "NOT_FOUND" if status < 500 else "INTERNAL_ERROR"
+        _audit_rejection(status, code, MESSAGES.get(code, code))
         return jsonify(error_body(code, MESSAGES.get(code, code))), status
 
     @app.errorhandler(Exception)

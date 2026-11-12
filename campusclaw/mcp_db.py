@@ -27,6 +27,9 @@ from typing import Any
 #: tool_ref / detail 的长度上限（应用层校验/截断，SQLite 不做 VARCHAR 强制）。
 MAX_TOOL_REF = 128
 MAX_DETAIL = 512
+#: SEC-07：操作类型与请求标识同样截断，避免日志字段被超长输入撑坏结构。
+MAX_ACTION = 64
+MAX_REQUEST_ID = 64
 
 
 def utc_now() -> str:
@@ -73,17 +76,55 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
                 detail          TEXT NOT NULL DEFAULT '',
                 user_id         INTEGER NOT NULL REFERENCES users(id),
                 conversation_id INTEGER REFERENCES conversations(id),
-                created_at      TEXT NOT NULL
+                created_at      TEXT NOT NULL,
+                action          TEXT NOT NULL DEFAULT 'skill.invoke',
+                object_id       TEXT NOT NULL DEFAULT '',
+                skill_id        TEXT NOT NULL DEFAULT '',
+                duration_ms     INTEGER,
+                tokens          INTEGER,
+                request_id      TEXT NOT NULL DEFAULT ''
             )
         """)
+        # 第 9 课 SEC-07：既有库已建过表，CREATE TABLE IF NOT EXISTS 不会补列，
+        # 因此在此做幂等增量迁移（缺哪列补哪列），老库升级后无需手工 ALTER。
+        _ensure_tool_call_columns(conn)
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_mcp_tool_calls_class "
             "ON mcp_tool_calls(class_id, created_at DESC, id DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mcp_tool_calls_skill "
+            "ON mcp_tool_calls(class_id, skill_id, created_at DESC)"
         )
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")
         raise
+
+
+#: SEC-07 七列中本项目特有的列；缺列即视为审计不完整。
+#: 列名 -> 建表语句片段。顺序即迁移顺序，只增不改。
+TOOL_CALL_EXTRA_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("action", "TEXT NOT NULL DEFAULT 'skill.invoke'"),
+    ("object_id", "TEXT NOT NULL DEFAULT ''"),
+    ("skill_id", "TEXT NOT NULL DEFAULT ''"),
+    ("duration_ms", "INTEGER"),
+    ("tokens", "INTEGER"),
+    ("request_id", "TEXT NOT NULL DEFAULT ''"),
+)
+
+
+def _ensure_tool_call_columns(conn: sqlite3.Connection) -> None:
+    """幂等补列：老库缺 SEC-07 所需的列时逐列 ADD COLUMN。
+
+    ADD COLUMN 不能带非常量默认值，故新列一律给常量默认值或允许 NULL。
+    """
+    existing = {
+        str(row["name"]) for row in conn.execute("PRAGMA table_info(mcp_tool_calls)")
+    }
+    for name, ddl in TOOL_CALL_EXTRA_COLUMNS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE mcp_tool_calls ADD COLUMN {name} {ddl}")
 
 
 # ---------------------------------------------------------------------------
@@ -356,11 +397,28 @@ def record_tool_call(
     detail: str,
     user_id: int,
     conversation_id: int | None,
+    *,
+    skill_id: str = "",
+    action: str = "skill.invoke",
+    object_id: str = "",
+    duration_ms: int | None = None,
+    tokens: int | None = None,
+    request_id: str = "",
 ) -> int:
-    """写一行调用审计，返回自增 id；detail/tool_ref 在应用层截断到上限。"""
+    """写一行调用审计，返回自增 id；detail/tool_ref 在应用层截断到上限。
+
+    SEC-07 七列：操作人(user_id)、操作时间(created_at)、操作类型(action)、
+    操作对象(object_id)、结果状态(status)、技能标识(skill_id)、
+    用量与耗时(tokens/duration_ms)；另记 request_id 以串联同一请求的多段日志。
+
+    用量说明：MCP 工具本身不返回模型 token 用量，故 ``tokens`` 允许为 NULL；
+    ``duration_ms`` 由调用方用单调时钟实测，始终有值。
+    """
     cursor = conn.execute(
         "INSERT INTO mcp_tool_calls(class_id, server_id, tool_ref, status, detail, "
-        "user_id, conversation_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "user_id, conversation_id, created_at, action, object_id, skill_id, "
+        "duration_ms, tokens, request_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             class_id,
             server_id,
@@ -370,6 +428,12 @@ def record_tool_call(
             user_id,
             conversation_id,
             utc_now(),
+            (action or "skill.invoke")[:MAX_ACTION],
+            str(object_id or "")[:MAX_TOOL_REF],
+            (skill_id or "")[:MAX_TOOL_REF],
+            int(duration_ms) if duration_ms is not None else None,
+            int(tokens) if tokens is not None else None,
+            (request_id or "")[:MAX_REQUEST_ID],
         ),
     )
     return int(cursor.lastrowid)
@@ -378,11 +442,15 @@ def record_tool_call(
 def list_tool_calls(
     conn: sqlite3.Connection, class_id: int, limit: int
 ) -> list[dict[str, Any]]:
-    """本班调用审计，只读，按时间倒序；JOIN 出 server_name 与 username。"""
+    """本班调用审计，只读，按时间倒序；JOIN 出 server_name 与 username。
+
+    返回字段对齐 SEC-07 七列，供「按技能标识加时间窗回查」直接使用。
+    """
     rows = conn.execute(
         """
         SELECT c.id, c.tool_ref, c.status, c.detail, c.conversation_id, c.created_at,
-               s.name AS server_name, u.username
+               c.action, c.object_id, c.skill_id, c.duration_ms, c.tokens,
+               c.request_id, s.name AS server_name, u.username
         FROM mcp_tool_calls c
         JOIN mcp_servers s ON s.id = c.server_id
         JOIN users u ON u.id = c.user_id
@@ -397,6 +465,8 @@ def list_tool_calls(
         ref = row["tool_ref"]
         tool_name = ref.split("@", 1)[0] if "@" in ref else ref
         conversation_id = row["conversation_id"]
+        duration_ms = row["duration_ms"]
+        tokens = row["tokens"]
         result.append(
             {
                 "id": int(row["id"]),
@@ -410,6 +480,13 @@ def list_tool_calls(
                     int(conversation_id) if conversation_id is not None else None
                 ),
                 "created_at": row["created_at"],
+                # SEC-07 七列中的项目特有两列与其配套字段。
+                "action": row["action"],
+                "object_id": row["object_id"],
+                "skill_id": row["skill_id"],
+                "duration_ms": int(duration_ms) if duration_ms is not None else None,
+                "tokens": int(tokens) if tokens is not None else None,
+                "request_id": row["request_id"],
             }
         )
     return result

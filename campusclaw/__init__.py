@@ -12,6 +12,7 @@ from typing import Any
 from flask import Flask
 
 from campusclaw import (
+    audit_db,
     bootstrap,
     db as dbmod,
     mcp_db,
@@ -24,7 +25,11 @@ from campusclaw import (
 )
 from campusclaw.config import ConfigError, Settings, load_project_dotenv, load_settings
 from campusclaw.errors import register_error_handlers
-from campusclaw.request_context import close_conn, register_page_redirect
+from campusclaw.request_context import (
+    close_conn,
+    register_page_redirect,
+    register_request_tracking,
+)
 
 SESSION_COOKIE_NAME = "campusclaw_session"
 
@@ -54,6 +59,8 @@ def prepare_storage_and_db(settings: Settings, env: dict[str, str] | None = None
         qa_db.ensure_schema(conn)
         # 第 8 课：异步批改任务表、幂等结果表，幂等增量建表。
         task_db.ensure_schema(conn)
+        # 第 9 课 SEC-07：审计事件表（记录被拒绝的尝试），幂等增量建表。
+        audit_db.ensure_schema(conn)
         # 为从未建立索引的材料补建关键词就绪切片，使解题助手开箱可检索本班资料。
         tutor_db.backfill_keyword_ready(conn)
         if scenario == "recovery_staging":
@@ -118,6 +125,7 @@ def create_app(
     app.teardown_appcontext(close_conn)
 
     from campusclaw.views.api_auth_views import bp as api_auth_bp
+    from campusclaw.views.audit_views import bp as audit_bp
     from campusclaw.views.auth_views import bp as auth_bp
     from campusclaw.views.conversation_views import bp as conversation_bp
     from campusclaw.views.docs_views import bp as docs_bp
@@ -143,9 +151,12 @@ def create_app(
     app.register_blueprint(mcp_bp)
     app.register_blueprint(qa_bp)
     app.register_blueprint(task_bp)
+    app.register_blueprint(audit_bp)
     app.register_blueprint(docs_bp)
 
     register_error_handlers(app)
     # 覆盖 ApiError 处理器以支持受保护页面的 302 重定向。
     register_page_redirect(app)
+    # 第 9 课 SEC-07：每请求生成 request_id，并在响应头回写。
+    register_request_tracking(app)
     return app

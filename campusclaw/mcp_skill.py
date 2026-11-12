@@ -17,12 +17,33 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from campusclaw import mcp_client, mcp_db, tutor_db
 from campusclaw.errors import ApiError
 
 logger = logging.getLogger(__name__)
+
+
+def _current_request_id() -> str:
+    """取本次请求的 request_id（SEC-07 用于把同一请求的多段日志串起来）。
+
+    编排层也可能被后台脚本直接调用，此时没有 Flask 请求上下文，返回空串即可。
+    """
+    try:
+        from flask import g, has_request_context
+
+        if has_request_context():
+            return str(getattr(g, "request_id", "") or "")
+    except Exception:  # pragma: no cover - Flask 不可用时降级
+        pass
+    return ""
+
+
+def _elapsed_ms(started: float) -> int:
+    """把 ``time.perf_counter()`` 的起点换算成整数毫秒（向上取整，0 表示小于 1ms）。"""
+    return int(round((time.perf_counter() - started) * 1000))
 
 #: query 类入参名：required 中这些键填本次提问原文。
 _QUERY_KEYS = ("query", "question", "text", "input")
@@ -129,11 +150,31 @@ def _record(
     detail: str,
     user_id: int,
     conversation_id: int | None,
+    *,
+    skill_id: str = "",
+    duration_ms: int | None = None,
+    object_id: str = "",
 ) -> None:
-    """写一行审计；审计失败只记日志，不阻断工具结果与主流程。"""
+    """写一行审计；审计失败只记日志，不阻断工具结果与主流程。
+
+    SEC-07 要求七列齐备，故这里补上技能标识、耗时与请求标识：
+    ``duration_ms`` 由调用点用单调时钟实测，``tokens`` 因 MCP 工具不返回
+    模型用量而留空（不是漏记，是无值可记）。
+    """
     try:
         mcp_db.record_tool_call(
-            conn, class_id, server_id, tool_ref, status, detail, user_id, conversation_id
+            conn,
+            class_id,
+            server_id,
+            tool_ref,
+            status,
+            detail,
+            user_id,
+            conversation_id,
+            skill_id=skill_id,
+            object_id=object_id,
+            duration_ms=duration_ms,
+            request_id=_current_request_id(),
         )
     except Exception:
         logger.exception("记录 MCP 调用审计失败：%s %s", tool_ref, status)
@@ -161,6 +202,8 @@ def run_skill_tools(
     整体 try/except 兜底：任何异常只记日志并返回已收集结果，绝不向上抛。
     """
     results: list[dict[str, Any]] = []
+    # SEC-07：技能标识必须随每次调用一起落库，否则无法回答「这次用的是哪个技能」。
+    skill_id = str((skill or {}).get("name") or (skill or {}).get("id") or "")
     try:
         for ref in (skill or {}).get("tools") or []:
             if ref == "knowledge_search":
@@ -187,7 +230,8 @@ def run_skill_tools(
             if not server["connected"]:
                 _record(
                     conn, class_id, server_id, ref, "denied", "服务器未连接",
-                    user_id, conversation_id,
+                    user_id, conversation_id, skill_id=skill_id, duration_ms=0,
+                    object_id=str(conversation_id or ""),
                 )
                 results.append(
                     {
@@ -202,11 +246,13 @@ def run_skill_tools(
                 detail = "工具未在已发现的清单中"
                 _record(
                     conn, class_id, server_id, ref, "error", detail,
-                    user_id, conversation_id,
+                    user_id, conversation_id, skill_id=skill_id, duration_ms=0,
+                    object_id=str(conversation_id or ""),
                 )
                 results.append({"ref": ref, "status": "error", "text": detail})
                 continue
             arguments = build_tool_arguments(tool.get("schema"), question)
+            started = time.perf_counter()
             try:
                 raw = mcp_client.call_tool(
                     server["base_url"], server["auth_token"], tool_name, arguments
@@ -215,7 +261,9 @@ def run_skill_tools(
                 reason = str(exc)
                 _record(
                     conn, class_id, server_id, ref, "error", reason,
-                    user_id, conversation_id,
+                    user_id, conversation_id, skill_id=skill_id,
+                    duration_ms=_elapsed_ms(started),
+                    object_id=str(conversation_id or ""),
                 )
                 results.append({"ref": ref, "status": "error", "text": reason})
                 continue
@@ -224,10 +272,13 @@ def run_skill_tools(
                 reason = "工具调用失败"
                 _record(
                     conn, class_id, server_id, ref, "error", reason,
-                    user_id, conversation_id,
+                    user_id, conversation_id, skill_id=skill_id,
+                    duration_ms=_elapsed_ms(started),
+                    object_id=str(conversation_id or ""),
                 )
                 results.append({"ref": ref, "status": "error", "text": reason})
                 continue
+            elapsed = _elapsed_ms(started)
             sanitized, passed = sanitize_tool_output(raw)
             if passed:
                 detail = sanitized[:200]
@@ -235,7 +286,8 @@ def run_skill_tools(
                 detail = "结果未通过安全校验，已丢弃，不作为回答依据"
             _record(
                 conn, class_id, server_id, ref, "ok", detail,
-                user_id, conversation_id,
+                user_id, conversation_id, skill_id=skill_id, duration_ms=elapsed,
+                object_id=str(conversation_id or ""),
             )
             results.append({"ref": ref, "status": "ok", "text": sanitized})
     except Exception:
