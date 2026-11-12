@@ -9,7 +9,7 @@ import time
 
 from qdrant_client import models
 
-from campusclaw import db as dbmod, retrieval_db
+from campusclaw import db as dbmod, retrieval_db, tutor_db
 from campusclaw.chunking import split_body
 from campusclaw.retrieval import embedding_model, fts_tokens, qdrant
 from campusclaw.retrieval_config import RetrievalConfig
@@ -217,6 +217,15 @@ def process_one(conn, config: RetrievalConfig, *, embedder_factory=embedding_mod
                 LOG.warning("Failed vectors will be cleaned on a later pass", exc_info=True)
         _mark_failed(conn, job, generation, type(exc).__name__)
         LOG.warning("Index task %s failed: %s", job["id"], type(exc).__name__)
+        # DEF-05：失败后立刻补建关键词就绪代次，而不是等下一次 app 启动。
+        # 原实现的补建只挂在 create_app 里，容器长时间运行时新上传的材料会一直
+        # 检索不到（要重启才自愈）；这里让「向量失败 → 关键词兜底」在同一个进程内闭合。
+        try:
+            rebuilt = tutor_db.backfill_keyword_ready(conn)
+            if rebuilt:
+                LOG.info("Keyword fallback rebuilt %s material(s) after failure", rebuilt)
+        except Exception:
+            LOG.warning("Keyword fallback after failure will retry on next pass", exc_info=True)
         return True
 
 

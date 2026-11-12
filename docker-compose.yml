@@ -5,7 +5,12 @@ name: campusclaw
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      # pip 源：默认清华镜像（实测容器内直连 pypi.org 超时），可用环境变量覆盖：
+      #   PIP_INDEX_URL=https://pypi.org/simple docker compose build
+      args:
+        PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
     image: campusclaw:latest
     container_name: campusclaw-app
     environment:
@@ -44,7 +49,12 @@ services:
       start_period: 30s
       retries: 3
   worker:
-    build: .
+    build:
+      context: .
+      # pip 源：默认清华镜像（实测容器内直连 pypi.org 超时），可用环境变量覆盖：
+      #   PIP_INDEX_URL=https://pypi.org/simple docker compose build
+      args:
+        PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
     image: campusclaw:latest
     command: ["python", "-m", "campusclaw.index_worker"]
     environment:
@@ -76,7 +86,12 @@ services:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
   mcp:
-    build: .
+    build:
+      context: .
+      # pip 源：默认清华镜像（实测容器内直连 pypi.org 超时），可用环境变量覆盖：
+      #   PIP_INDEX_URL=https://pypi.org/simple docker compose build
+      args:
+        PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
     image: campusclaw:latest
     # 第 6 课：自建 MCP 工具服务。与主应用同镜像、不同 command；
     # 令牌经环境变量注入（项目根 .env 的 MCP_AUTH_TOKEN），不写死在文件或镜像层。
@@ -89,6 +104,9 @@ services:
       # 只想改宿主机端口时：设置 MCP_PORT=8091 后再 up。
       - "127.0.0.1:${MCP_PORT:-8090}:8090"
     # 不设 depends_on：不拦 app 启动；连接失败由主机侧返回 502 可读提示。
-    restart: unless-stopped
+    # 有限重试而非 unless-stopped：未配 MCP_AUTH_TOKEN 时该服务是 fail-closed 拒绝启动，
+    # 用无限重启只会变成日志刷屏的死循环（实测 90 秒内重启 12 次），
+    # 有限次后停在 Exited(2)，`docker compose ps` 能直接看出是「没配令牌」而不是「崩了」。
+    restart: on-failure:3
 volumes:
   qdrant_data:

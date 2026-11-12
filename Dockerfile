@@ -8,8 +8,18 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# pip 源做成构建参数，不写死在命令里。
+# 2026-11-12 实测：本机容器内直连 pypi.org 为 TCP 超时（同为容器的百度 / 阿里云 / 清华镜像均通），
+# 默认源下 `docker compose up --build` 必然失败在 pip 一步，故默认走清华镜像。
+# 换到能直连官方源的网络时，改回默认值或显式覆盖：
+#   docker build --build-arg PIP_INDEX_URL=https://pypi.org/simple .
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
 COPY requirements.txt ./
-RUN pip install -r requirements.txt
+# --timeout / --retries：容器内网络抖动时不至于 370 秒后整体失败，给重试留时间。
+RUN pip install --no-cache-dir --timeout 60 --retries 3 \
+        --index-url "${PIP_INDEX_URL}" \
+        -r requirements.txt
 
 COPY campusclaw/ ./campusclaw/
 COPY app.py ./
