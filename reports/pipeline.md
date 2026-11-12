@@ -4,8 +4,9 @@
 > 编号能反查提交**。证据文件名固定为 `reports/pipeline.md`，内容判定是
 > 「一次成功构建的编号与对应提交，镜像编号能反查提交」。
 >
-> **先说结论：流程执行 ✅、测试通过 ✅、编号反查提交 ✅、产出镜像 ❌。**
-> 这一条按课件原文只能算**部分通过**——原因与改法写在第四节。
+> **先说结论：流程执行 ✅、测试通过 ✅、产出镜像 ✅、编号反查提交 ✅。**
+> 镜像带 `org.opencontainers.image.revision` 标签，标签值就是提交 SHA，
+> 离开仓库后仍能回答「这是哪次提交做的」。第四、五节是实测记录。
 
 ## 一、流水线做了什么
 
@@ -23,10 +24,13 @@
 | 8 | SEC-07 审计七列结构断言 | `uv run python scripts/audit_recheck.py --allow-empty` |
 | 9 | 第 10 课运行观测告警判定 | `uv run python scripts/check_observe.py` |
 | 10 | 容器配置静态校验 | `uv run python scripts/check_compose.py` |
-| 11 | 归档证据 | `actions/upload-artifact@v4`（`check-evidence`） |
+| 11 | **构建镜像** | `docker build -t campusclaw:${GITHUB_SHA} -t campusclaw:run-${GITHUB_RUN_NUMBER} .` |
+| 12 | 归档证据 | `actions/upload-artifact@v4`（`check-evidence`） |
 
-**没有 `docker build`。** 全文件检索 `docker|build|registry|image` 只命中
-第 15 行的 `push:` 触发条件，一个构建步骤都没有。
+构建步骤**放在测试之后**是有意的：门禁没绿就构建出一个镜像，等于给坏提交发通行证。
+构建完成后做三件事——打印镜像 ID 与大小、断言镜像里的 `revision` 标签等于当前 SHA、
+用 `docker run --rm <image> python -c "import campusclaw"` 冒烟确认依赖装齐；
+三行结果写进 step summary，运行页可直接看到。
 
 ## 二、运行记录（每次都能反查提交）
 
@@ -39,10 +43,13 @@
 | 5 | `488e7d7` | README 接验收章节 | success | 33s | 28,011 B |
 | **6** | **`7f9af27`** | **必红提交（跳过 CSRF）** | **failure** | 31s | — |
 | 7 | `f73a73e` | 还原 CSRF | success | 28s | — |
+| 8 | `3283417` | 补齐课件归档与口径下调 | success | 38s | — |
+| **9** | **`53e8636`** | **B 档：镜像 + 曲线 + 缓存 + 轻量端** | **success** | **1m53s** | — |
 
 运行页：
 [run #6（红）](https://github.com/Perry-xwr/campus-claw/actions/runs/43248188556) ·
 [run #7（绿）](https://github.com/Perry-xwr/campus-claw/actions/runs/43248376283) ·
+[run #9（产出镜像）](https://github.com/Perry-xwr/campus-claw/actions/runs/43256692919) ·
 [全部运行](https://github.com/Perry-xwr/campus-claw/actions)
 
 **run #6 是刻意的红**：本地把 CSRF 校验改坏、`make check` 退出码 1，推送后 CI 同样
@@ -69,37 +76,66 @@ run #1 一次就绿，但三步只用了 1 秒。查下去发现：`.gitignore` 
 
 这一项**达标**：每次运行都能定位到提交，每个提交都能查到运行。
 
-## 四、没做到的一项：产出镜像
+## 四、产出镜像：构建了什么，怎么反查
 
-课件要求「**产出镜像，编号能反查提交**」。当前流水线只跑测试，不构建镜像，
-因此没有镜像编号，也没有「镜像 ↔ 提交」的对应关系。
+### ① CI 上的构建（run #9，第 12 步）
 
-容器镜像目前是**本地构建**的：`docker compose build`（`campusclaw:latest`，约 498MB），
-与 CI 运行没有关联。这意味着：
-
-- 课件要的「构建产物可追溯」不成立——`campusclaw:latest` 是个浮动标签，相同标签可能对应不同提交；
-- 但「同一份代码在容器里是绿的」这一点是实测过的（`reports/evidence/docker-acceptance.md`）。
-
-**改法（B 档，需改工作流）**：在门禁之后加一步
-
-```yaml
-- name: 构建镜像并打提交标签
-  run: docker build -t campusclaw:${{ github.sha }} .
+```
+镜像 ID sha256:...，大小 497,899,761 字节
+镜像内 revision 标签：53e8636537adbdc3675081c0902d7bc7a5313097
+import ok
 ```
 
-需要推镜像仓库时再补 `docker push` 与登录步骤。打完标签后，`campusclaw:<sha>`
-即可反查提交，本判据才真正成立。
+该步耗时 **78 秒**（16:16:09 → 16:17:27），整个 job **1 分 53 秒**、13 个实质步骤全绿。
+镜像打了两个标签：`campusclaw:<GITHUB_SHA>` 与 `campusclaw:run-<GITHUB_RUN_NUMBER>`，
+前者是「反查提交」用的，后者是「这一次运行」用的。
+
+### ② 本地复现（同一份代码，同一份 Dockerfile）
+
+```bash
+SHA=$(git rev-parse --short HEAD)
+docker build --build-arg GIT_SHA=$SHA --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  -t campusclaw:$SHA .
+docker image inspect campusclaw:$SHA \
+  --format 'revision={{index .Config.Labels "org.opencontainers.image.revision"}} id={{.Id}} size={{.Size}}'
+docker run --rm campusclaw:$SHA python -c "import campusclaw; print('import ok')"
+```
+
+实测（本机，提交 `53e8636`）：
+
+```
+revision=53e8636 id=sha256:33c7a71daa5d8a3c3e3fefa29238b17681bed0dc0be34ed826046fcd7f504277 size=497899761
+import ok
+```
+
+`Dockerfile` 里两个构建参数 `GIT_SHA` / `BUILD_TIME` 落到
+`org.opencontainers.image.revision` 与 `.created` 两个标签上。不传时默认 `unknown`——
+宁可标注「不知道」，也不要留一个看起来像真的默认提交号。
+
+### ③ 编号反查链条
+
+| 你要查的 | 怎么查 |
+| --- | --- |
+| 某次运行对应哪个提交 | run 页标题 + `head_sha`；上表已列 |
+| 某个提交有没有跑过 | `https://api.github.com/repos/Perry-xwr/campus-claw/actions/runs?head_sha=<sha>` |
+| **某个镜像对应哪个提交** | `docker image inspect campusclaw:<sha> --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'` |
+| 该次运行产出了什么 | run 页底部 `check-evidence` artifact + step summary 里的镜像 ID/大小 |
+
+仍需说明的是：**镜像只在 runner 上构建，没有推到镜像仓库**（`docker push` 需要仓库写权限
+与登录凭据）。所以「编号反查提交」在 CI 日志与本机构建两处成立，但别人拿不到那个镜像文件。
+要真正交付，下一步是推 GHCR 并给 digest 打标签——这属于部署环节，不在本轮范围。
 
 ## 五、判定
 
 | 课件要求 | 实际 | 判定 |
 | --- | --- | --- |
-| 自动构建流程执行 | 7 次运行，全部由 push 触发 | 达标 |
-| 测试通过 | run #7 success，12 个实质步骤无一跳过 | 达标 |
-| 编号能反查提交 | 上表 + API 查询方式 | 达标 |
-| **产出镜像** | **无 `docker build`** | **不达标** |
+| 自动构建流程执行 | 9 次运行，全部由 push 触发 | 达标 |
+| 测试通过 | run #9 success，13 个实质步骤无一跳过 | 达标 |
+| **产出镜像** | run #9 第 12 步 `docker build -t campusclaw:<SHA>`，78 秒，镜像 497.9 MB | 达标 |
+| **编号能反查提交** | 镜像标签 `campusclaw:53e8636` + `revision` 标签同值 + 上表与 API 查询 | 达标 |
 | 本地红则推送也失败 | run #6 failure | 达标 |
+| 镜像推送到仓库 | 未做（需仓库凭据） | 不计入本判据 |
 | 主干分支保护 | 未开启（需仓库设置） | 不达标 |
 
-结论：**部分通过**。缺的那一项是流水线的最后一段（构建并打标签），
-不是配置写错，而是这一步还没写。
+结论：**通过**。这一条从「流程跑完就结束」补成了「流程跑完产出可追溯的制品」：
+镜像编号就是提交 SHA，镜像元数据里也写着同一个值，两条路都能反查。

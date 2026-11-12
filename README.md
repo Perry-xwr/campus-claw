@@ -9,6 +9,7 @@ CampusClaw 是面向课程班级的教学材料管理、知识检索与协作答
 - **班级答疑广场**：问题、回复、采纳、关闭及教师管理；教师确认后可将 FAQ 发布为本班知识材料。
 - **异步批改**：提交接口返回任务标识，独立 SQLite 消费者处理队列；当前批改采用确定性本地规则，不是真实大模型评分；支持状态查询、重试与幂等结果。三项异步验收入口及历史证据见[异步批改说明](docs/IMPLEMENTATION.md#异步批改)和[验收记录](reports/demo-walkthrough.md)。这不代表项目 37 个业务验收场景已通过。
 - **MCP 工具接入**：教师管理服务和工具白名单，工具调用按授权服务层执行并记录审计。
+- **运行观测与轻量端**：`/claw/` 面板按技能分线出调用量、错误率、接口 P95 与队列深度四条曲线，5 条告警规则可红可绿；`/m` 是手机浏览器直接打开的 H5，复用同一套接口，跨源按白名单声明。
 
 ## 技术架构
 
@@ -36,7 +37,7 @@ docker compose up -d
 
 ## 使用演示
 
-登录后，教师可在 `/materials` 管理材料，在 `/knowledge` 试用检索，在 `/qa` 管理班级问题；学生可在 `/tutor` 使用解题助手并在 `/qa` 参与答疑。异步批改 API 为 `POST /api/submissions`，查询 `/api/tasks/{task_id}`；消费者可用 `uv run python -m campusclaw.task_worker` 启动。页面、接口与隔离验收命令详见[使用与实现说明](docs/IMPLEMENTATION.md)。
+登录后，教师可在 `/materials` 管理材料，在 `/knowledge` 试用检索，在 `/qa` 管理班级问题；学生可在 `/tutor` 使用解题助手并在 `/qa` 参与答疑。异步批改 API 为 `POST /api/submissions`，查询 `/api/tasks/{task_id}`；消费者可用 `uv run python -m campusclaw.task_worker` 启动。页面、接口与隔离验收命令详见[使用与实现说明](docs/IMPLEMENTATION.md)。运行观测面板在 `/claw/`，手机轻量端在 `/m`；三个演示脚本见[轻量端走查](reports/h5-lightweight.md)与[观测面板与告警](reports/observe-alert.md)。
 
 ## 当前状态
 
@@ -62,7 +63,7 @@ make check                         # 需 GNU make，等价
 
 推送与 PR 由 [`.github/workflows/check.yml`](.github/workflows/check.yml) 执行同一份清单，证据以 `check-evidence` 产物归档；运行结果见 [Actions](https://github.com/Perry-xwr/campus-claw/actions) 与 [CI 运行记录](reports/evidence/ci-first-run.md)。
 
-逐条判据、缺陷修复过程与红绿验证写在[验收与测试流程报告](reports/验收与测试流程报告-2026-11-12.md)。当前结论：**第 9 课 5 条判据全部通过；第 10 课 5 条通过、1 条（真实用户试用）未执行**——没有真实用户，不拿自测冒充。
+逐条判据、缺陷修复过程与红绿验证写在[验收与测试流程报告](reports/验收与测试流程报告-2026-11-12.md)。当前结论：**第 9 课 5 条判据全部通过；第 10 课 4 条通过、1 条部分（环境可复现）、1 条未执行（真实用户）**——没有真实用户，不拿自测冒充。
 
 门禁的价值不在「有一次通过」，而在**退出码随代码状态变化**：每一项都先构造坏提交确认退出码为 1，再修复确认回 0。只留一次绿说明不了任何问题，因为命令可能根本没在检查。仓库里两个已修缺陷都是这类情况——没有样本时直接把判定记为通过，以及 CI 上因缺数据库导致审计断言与观测规则一条都没执行、步骤却显示成功。
 
@@ -75,7 +76,8 @@ make check                         # 需 GNU make，等价
 - **质量与安全**：[测试规范](docs/standards/testing.md)、[安全规范](docs/standards/security.md)、[AI 规范](docs/standards/ai.md)、[产品规范](docs/standards/product.md)、[运维规范](docs/standards/operations.md)、[仓库协作规则](AGENTS.md)
 - **验收与测试**：
   - 最终报告：[根目录 report.md](report.md)（结论与指向）；过程记录：[验收与测试流程报告（第 9–10 课）](reports/验收与测试流程报告-2026-11-12.md)、[验收测试报告（2026-11-10，基线 475eb45）](reports/verification/验收测试报告-2026-11-10.md)
-  - 第 10 课规定证据：[门禁红绿](reports/gate-red-green.md)、[换目录启动复现](reports/boot-reproduce.md)、[流水线记录](reports/pipeline.md)、[观测面板与告警](reports/observe-alert.md)、[压测基线](reports/bench.md)、[真实用户反馈](reports/feedback.md)
+  - 第 10 课规定证据：[门禁红绿](reports/gate-red-green.md)、[换目录启动复现](reports/boot-reproduce.md)、[流水线记录](reports/pipeline.md)、[观测面板与告警](reports/observe-alert.md)、[压测前后对比](reports/bench.md)、[真实用户反馈](reports/feedback.md)
+  - 轻量端与跨源：[轻量端（H5）与跨源声明](reports/h5-lightweight.md)
   - 第 9 课规定证据：[安全修复对照](reports/security-fix-log.md)、[安全基线](reports/security-baseline.md)、[SEC-08 提示词注入实验](reports/sec08-experiment.md)、[权限风险](reports/risk-authz.md)
   - 其他记录：[容器实跑记录](reports/evidence/docker-acceptance.md)、[CI 运行记录](reports/evidence/ci-first-run.md)、[审计日志回查](reports/audit-recheck.md)、[第 8 课异步演示记录](reports/demo-walkthrough.md)
 - **安全与风险记录**：[安全自查](reports/security-precheck.md)、[安全修复记录](reports/security-fix-log.md)、[并发风险](reports/risk-concurrency.md)、[事务风险](reports/risk-transaction.md)、[权限风险](reports/risk-authz.md)
