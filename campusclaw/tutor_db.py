@@ -231,7 +231,12 @@ def _write_keyword_chunks(
     entry_id: int,
     body_text: str,
 ) -> int:
-    """写一批 ready 关键词切片与 FTS 行；调用方负责事务。"""
+    """写一批 ready 关键词切片与 FTS 行；调用方负责事务。
+
+    代次取 ``MAX(generation)+1`` 而不是固定 1：材料可能曾被索引 worker 处理过并
+    留下旧代（含失败代），固定写第 1 代会与既有数据冲突（UNIQUE 约束），也会让
+    「最新一代是否就绪」这一判据永远为假，补建反复触发。
+    """
     from campusclaw.chunking import split_body
     from campusclaw.retrieval import fts_tokens
 
@@ -240,16 +245,23 @@ def _write_keyword_chunks(
         return 0
     stamp = utc_now()
     strategy_json = json.dumps(AUTO_STRATEGY, ensure_ascii=False, sort_keys=True)
+    generation = int(
+        conn.execute(
+            "SELECT COALESCE(MAX(generation),0)+1 FROM knowledge_chunks WHERE material_id=?",
+            (material_id,),
+        ).fetchone()[0]
+    )
     for chunk in pieces:
         cursor = conn.execute(
             "INSERT INTO knowledge_chunks(knowledge_entry_id, material_id, class_id, "
             "generation, chunk_index, start_offset, end_offset, offset_basis, "
             "strategy_json, chunk_text, index_status, created_at) "
-            "VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 'ready', ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?)",
             (
                 entry_id,
                 material_id,
                 class_id,
+                generation,
                 chunk.index,
                 chunk.start,
                 chunk.end,
@@ -266,8 +278,15 @@ def _write_keyword_chunks(
         )
     conn.execute(
         "INSERT OR REPLACE INTO material_index(material_id, active_generation, status, "
-        "strategy_json, last_error, updated_at) VALUES (?, 1, 'ready', ?, NULL, ?)",
-        (material_id, strategy_json, stamp),
+        "strategy_json, last_error, updated_at) VALUES (?, ?, 'ready', ?, NULL, ?)",
+        (material_id, generation, strategy_json, stamp),
+    )
+    # 清理旧代的失败空壳：它们既不可检索，又会一直占据 knowledge_chunks，
+    # 留着只会让「最新一代」判据变得含混，也让库随重建次数不断膨胀。
+    conn.execute(
+        "DELETE FROM knowledge_chunks WHERE material_id = ? AND generation <> ? "
+        "AND index_status = 'failed'",
+        (material_id, generation),
     )
     # 从未被认领的排队任务标记完成：避免未配置嵌入的 worker 之后把状态改回 failed。
     conn.execute(
@@ -279,13 +298,28 @@ def _write_keyword_chunks(
 
 
 def backfill_keyword_ready(conn: sqlite3.Connection) -> int:
-    """为从未建立切片的 active 材料补建关键词就绪代次，返回材料数。"""
+    """为「最新一代没有可检索切片」的 active 材料补建关键词就绪代次，返回材料数。
+
+    判据从「有没有任何切片」改成「最新一代是否 ready」，原因是前者会把失败代
+    当成已索引：索引 worker 处理失败时先插入 pending 切片、再把它们标成 failed
+    但不删除，旧的 ``NOT EXISTS`` 就此认为该材料已有切片，补建被永久跳过——
+    结果是这份材料对全班不可检索，重启也不自愈（第 9 课验收样例⑤的 DEF-01）。
+
+    现在失败代会命中本判据，补建会写一个更高的新代次并推进 ``active_generation``，
+    检索立刻可用；旧失败代在写入时一并清理。
+    """
     rows = conn.execute("""
         SELECT m.id, m.class_id, k.id AS entry_id, k.body_text
         FROM materials m
         JOIN knowledge_entries k ON k.material_id = m.id
         WHERE m.status = 'active'
-          AND NOT EXISTS (SELECT 1 FROM knowledge_chunks c WHERE c.material_id = m.id)
+          AND NOT EXISTS (
+              SELECT 1 FROM knowledge_chunks c
+              WHERE c.material_id = m.id
+                AND c.index_status = 'ready'
+                AND c.generation = (
+                    SELECT MAX(generation) FROM knowledge_chunks
+                    WHERE material_id = m.id))
           AND NOT EXISTS (
               SELECT 1 FROM index_jobs j
               WHERE j.material_id = m.id
