@@ -2,7 +2,7 @@
   "source": "data\\app.db",
   "verdict": {
     "status": "ok",
-    "checked_at": "2026-11-12T22:27:39+08:00",
+    "checked_at": "2026-11-12T23:28:14+08:00",
     "rule_count": 5,
     "passed": 4,
     "skipped": 1,
@@ -52,7 +52,7 @@
         "id": "audit_denials",
         "level": "warning",
         "title": "最近 60 分钟被拒绝请求数",
-        "value": 48,
+        "value": 0,
         "threshold": 200,
         "ok": true,
         "skipped": false,

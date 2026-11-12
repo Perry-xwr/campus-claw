@@ -25,6 +25,15 @@ uv run python app.py
 
 打开 <http://127.0.0.1:8080/login>。本机首次启动会初始化 `data/` 与 `uploads/`。仅在本机演示时可使用文档所列预置账号；对外部署必须配置真实密钥和口令并启用严格配置。详细配置、Docker Compose 与 Windows 脚本见[实现说明](docs/IMPLEMENTATION.md)。
 
+用容器启动时先补一步环境文件，否则工具服务会因缺令牌拒绝启动：
+
+```bash
+cp .env.example .env          # 至少填一个非空 MCP_AUTH_TOKEN
+docker compose up -d
+```
+
+`MCP_AUTH_TOKEN` 只从环境变量读取、不写入代码或镜像，`.env` 也不进版本库，所以这一步无法省略。缺令牌时 `campusclaw-mcp-1` 会停在 `Exited (2)` 并在日志里说明原因——这是 fail-closed 的设计，不是故障。完整实测记录见[换目录启动复现](reports/boot-reproduce.md)。
+
 ## 使用演示
 
 登录后，教师可在 `/materials` 管理材料，在 `/knowledge` 试用检索，在 `/qa` 管理班级问题；学生可在 `/tutor` 使用解题助手并在 `/qa` 参与答疑。异步批改 API 为 `POST /api/submissions`，查询 `/api/tasks/{task_id}`；消费者可用 `uv run python -m campusclaw.task_worker` 启动。页面、接口与隔离验收命令详见[使用与实现说明](docs/IMPLEMENTATION.md)。
@@ -65,11 +74,12 @@ make check                         # 需 GNU make，等价
 - **产品与需求**：[项目需求](docs/requirements/project-requirements.md)、[功能规格](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[14 项需求与 37 个场景](docs/requirements/acceptance-scenarios.md)、[集成要求](docs/requirements/integration-requirements.md)
 - **质量与安全**：[测试规范](docs/standards/testing.md)、[安全规范](docs/standards/security.md)、[AI 规范](docs/standards/ai.md)、[产品规范](docs/standards/product.md)、[运维规范](docs/standards/operations.md)、[仓库协作规则](AGENTS.md)
 - **验收与测试**：
-  - 报告：[验收与测试流程报告（第 9–10 课）](reports/验收与测试流程报告-2026-11-12.md)、[验收测试报告（2026-11-10，基线 475eb45）](reports/verification/验收测试报告-2026-11-10.md)
-  - 运行证据：[CI 运行记录](reports/evidence/ci-first-run.md)、[门禁红绿证据（含四项门禁时期原文）](reports/gate-red-green.md)、[容器实跑记录](reports/evidence/docker-acceptance.md)
-  - 分项：[压测基线](reports/bench.md)、[审计日志回查](reports/audit-recheck.md)、[第 8 课异步演示记录](reports/demo-walkthrough.md)
+  - 最终报告：[根目录 report.md](report.md)（结论与指向）；过程记录：[验收与测试流程报告（第 9–10 课）](reports/验收与测试流程报告-2026-11-12.md)、[验收测试报告（2026-11-10，基线 475eb45）](reports/verification/验收测试报告-2026-11-10.md)
+  - 第 10 课规定证据：[门禁红绿](reports/gate-red-green.md)、[换目录启动复现](reports/boot-reproduce.md)、[流水线记录](reports/pipeline.md)、[观测面板与告警](reports/observe-alert.md)、[压测基线](reports/bench.md)、[真实用户反馈](reports/feedback.md)
+  - 第 9 课规定证据：[安全修复对照](reports/security-fix-log.md)、[安全基线](reports/security-baseline.md)、[SEC-08 提示词注入实验](reports/sec08-experiment.md)、[权限风险](reports/risk-authz.md)
+  - 其他记录：[容器实跑记录](reports/evidence/docker-acceptance.md)、[CI 运行记录](reports/evidence/ci-first-run.md)、[审计日志回查](reports/audit-recheck.md)、[第 8 课异步演示记录](reports/demo-walkthrough.md)
 - **安全与风险记录**：[安全自查](reports/security-precheck.md)、[安全修复记录](reports/security-fix-log.md)、[并发风险](reports/risk-concurrency.md)、[事务风险](reports/risk-transaction.md)、[权限风险](reports/risk-authz.md)
-- **用户试用**：[试用模板](reports/user-trial-template.md)、[批次记录 2026-11-12](reports/user-trial-record.md)
+- **用户试用**：[反馈归档（课件格式）](reports/feedback.md)、[试用模板](reports/user-trial-template.md)、[批次记录 2026-11-12](reports/user-trial-record.md)
 - **历史设计**：[第 7 课团队交接](docs/lesson-07/team-handoff.md)、[历史骨架 OpenSpec](openspec/changes/2026-10-28-project-skeleton/proposal.md)（Go/React/MySQL 规划，不是当前架构或验收结果）
 
 历史课程材料和原始报告用于追溯背景与证据，保留其原始范围和结论。
