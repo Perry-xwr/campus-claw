@@ -128,6 +128,7 @@ def create_app(
     from campusclaw.views.audit_views import bp as audit_bp
     from campusclaw.views.auth_views import bp as auth_bp
     from campusclaw.views.conversation_views import bp as conversation_bp
+    from campusclaw.views.dashboard_views import bp as dashboard_bp
     from campusclaw.views.docs_views import bp as docs_bp
     from campusclaw.views.health_views import bp as health_bp
     from campusclaw.views.material_views import bp as materials_bp
@@ -152,6 +153,7 @@ def create_app(
     app.register_blueprint(qa_bp)
     app.register_blueprint(task_bp)
     app.register_blueprint(audit_bp)
+    app.register_blueprint(dashboard_bp)
     app.register_blueprint(docs_bp)
 
     register_error_handlers(app)

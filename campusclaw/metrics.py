@@ -188,3 +188,38 @@ def observe_from_g(g: Any, status: int) -> None:
     if started is None:
         return
     observe(request.method, request.path, status, (time.perf_counter() - started) * 1000)
+
+
+def snapshot() -> dict[str, Any]:
+    """进程内指标的结构化快照，供面板与告警判读使用。
+
+    与 :func:`render` 读同一份数据，只是输出成 Python 结构而不是 Prometheus 文本：
+    文本那是给抓取端用的，面板要自己算状态，不该再去解析自己生成的文本。
+    """
+    with _LOCK:
+        counter_items = list(_COUNTER.items())
+        durations = sorted(_DURATIONS)
+
+    total = 0
+    by_status: dict[str, int] = {}
+    by_path: dict[str, int] = {}
+    for (method, path, status), count in counter_items:
+        total += count
+        by_status[status] = by_status.get(status, 0) + count
+        key = f"{method} {path}"
+        by_path[key] = by_path.get(key, 0) + count
+
+    return {
+        "requests_total": total,
+        "requests_by_status": dict(sorted(by_status.items())),
+        "requests_by_path": dict(
+            sorted(by_path.items(), key=lambda kv: kv[1], reverse=True)[:10]
+        ),
+        "duration_ms": {
+            "samples": len(durations),
+            "p50": round(_quantile(durations, 0.5), 2),
+            "p90": round(_quantile(durations, 0.9), 2),
+            "p95": round(_quantile(durations, 0.95), 2),
+            "p99": round(_quantile(durations, 0.99), 2),
+        },
+    }

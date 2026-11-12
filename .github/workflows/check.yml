@@ -5,6 +5,7 @@
 #   check-async     → 第 8 课三条判据
 #   check-apitest   → 第 9 课注入三件套
 #   check-audit     → SEC-07 审计七列结构断言
+#   check-observe   → 第 10 课运行观测告警判定
 #
 # 任一步非零退出即整体失败，主干因此进不去坏提交。
 name: check
@@ -46,6 +47,11 @@ jobs:
         run: >-
           uv run python scripts/audit_recheck.py
           --db data/app.db --out reports/audit-recheck.md --allow-empty
+
+      - name: 第 10 课运行观测告警判定
+        run: >-
+          uv run python scripts/check_observe.py
+          --db data/app.db --out reports/evidence/observe.json
 
       - name: 归档证据
         if: always()

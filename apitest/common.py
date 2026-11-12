@@ -224,6 +224,19 @@ class Context:
                                    headers={"Content-Type": "application/x-www-form-urlencoded"})
         return status
 
+    def cookie_client(self, username: str = "teacher_a", password: str | None = None):
+        """新建一个已登录的 Cookie 会话客户端（页面渲染检查用，Bearer 进不了页面）。"""
+        client = Client(self.base_url, with_cookies=True)
+        token = client.csrf_token("/login")
+        form = urllib.parse.urlencode({
+            "csrf_token": token,
+            "username": username,
+            "password": password or DEMO_ACCOUNTS[username],
+        }).encode("utf-8")
+        client.request("POST", "/login", raw=form, follow=False,
+                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+        return client
+
 
 def record(name: str, premise: str, action: str, expected: str, actual: str,
            ok: bool, kind: str = "反例") -> dict:

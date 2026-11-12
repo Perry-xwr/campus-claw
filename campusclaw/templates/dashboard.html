@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}运行观测 · CampusClaw{% endblock %}
+{% block body %}
+<div class="app">
+
+  <header class="appbar">
+    <div class="appbar-inner">
+      <a class="logo" href="{{ url_for('pages.materials_page') }}">
+        <span class="logo-mark">🎓</span>
+        <span class="logo-text">
+          <strong>CampusClaw</strong>
+          <small>智能教学平台</small>
+        </span>
+      </a>
+
+      <nav class="tabs">
+        <a class="tab" href="{{ url_for('pages.materials_page') }}">教学材料</a>
+        <a class="tab" href="{{ url_for('pages.knowledge_page') }}">知识检索</a>
+        <a class="tab" href="{{ url_for('pages.tutor_page') }}">解题助手</a>
+        <a class="tab" href="{{ url_for('qa.qa_list_page') }}">答疑广场</a>
+        <a class="tab" href="{{ url_for('qa.qa_faq_page') }}">班级 FAQ</a>
+        {% if user.role == 'teacher' %}
+        <a class="tab" href="{{ url_for('qa.qa_stats_page') }}">答疑统计</a>
+        <a class="tab" href="{{ url_for('pages.tutor_settings_page') }}">助手设置</a>
+        <a class="tab tab-active" href="{{ url_for('dashboard.dashboard_page') }}">运行观测</a>
+        {% endif %}
+        <span class="tab tab-off" title="后续课程开放">作业批改</span>
+      </nav>
+
+      <div class="userbox">
+        <span class="class-chip"><i class="dot"></i>{{ user.class_name }} 班</span>
+        <span class="badge badge-brand">{{ '教师' if user.role == 'teacher' else '学生' }}</span>
+        <span class="who">已登录：<strong>{{ user.username }}</strong></span>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="logout">退出</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  {% set st = data.status %}
+  {% set st_badge = 'badge-ok' if st == 'ok' else ('badge-warn' if st == 'degraded' else 'badge-danger') %}
+  {% set st_text = '全部正常' if st == 'ok' else ('需要关注' if st == 'degraded' else '存在严重问题') %}
+
+  <section class="banner">
+    <div class="banner-inner">
+      <div>
+        <h1>运行观测</h1>
+        <p>
+          服务健康度实时判定：<span class="badge {{ st_badge }}">{{ st_text }}</span>
+          <span style="color:var(--text-3);font-size:12.5px;margin-left:8px">
+            判定时间 {{ data.checked_at }}，共 {{ data.rules|length }} 条规则，通过 {{ data.rules|selectattr('ok')|list|length }} 条
+          </span>
+        </p>
+      </div>
+      <div class="stat-strip">
+        <div class="stat"><b id="kpi-requests">{{ data.metrics.requests_total }}</b><span>请求总数</span></div>
+        <div class="stat"><b id="kpi-p95">{{ data.metrics.duration_ms.p95 }}</b><span>P95 毫秒</span></div>
+        <div class="stat"><b id="kpi-index-failed">{{ data.db.index_failed }}</b><span>索引失败</span></div>
+        <div class="stat"><b id="kpi-tasks">{{ data.db.tasks_pending }}</b><span>任务积压</span></div>
+        <div class="stat"><b id="kpi-denials">{{ data.db.denials_window }}</b><span>近期拒绝</span></div>
+      </div>
+    </div>
+  </section>
+
+  <main class="shell">
+    <div class="stack">
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">告警</span>
+          <span style="color:var(--text-3);font-size:12.5px">
+            阈值可调，判定逻辑不变；critical 是「已经坏了」，warning 是「趋势不对」
+          </span>
+        </div>
+        <div class="card-body" id="alert-area">
+          {% if data.alerts %}
+          <div class="row-list">
+            {% for a in data.alerts %}
+            <div class="list-row" style="border-left-color:{{ 'var(--danger)' if a.level == 'critical' else 'var(--warn)' }}">
+              <div class="grow">
+                <div class="row-title">
+                  <span class="badge {{ 'badge-danger' if a.level == 'critical' else 'badge-warn' }}">{{ a.level }}</span>
+                  {{ a.title }}
+                </div>
+                <div class="row-meta">
+                  实际值 {{ a.value }}，阈值 {{ a.threshold }} · {{ a.hint }}
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="mono" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--text-3)">{{ a.id }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty">
+            <span class="empty-ic">✅</span>
+            当前 {{ data.rules|length }} 条规则全部通过
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">规则明细</span>
+          <span class="badge badge-neutral">{{ data.rules|length }} 条</span>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table class="skill-table">
+            <thead>
+              <tr><th>规则</th><th>判定项</th><th>实际</th><th>阈值</th><th>结果</th></tr>
+            </thead>
+            <tbody>
+              {% for r in data.rules %}
+              <tr>
+                <td class="mono">{{ r.id }}</td>
+                <td>{{ r.title }}</td>
+                <td>{{ r.value }}</td>
+                <td>{{ r.threshold }}</td>
+                <td>
+                  {% if r.ok %}
+                  <span class="badge badge-ok">通过</span>
+                  {% else %}
+                  <span class="badge {{ 'badge-danger' if r.level == 'critical' else 'badge-warn' }}">未通过</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">请求分布</span>
+          <span style="color:var(--text-3);font-size:12.5px">最近 2000 次采样的耗时与路径排行</span>
+        </div>
+        <div class="card-body">
+          <div class="stat-strip" style="margin-bottom:14px">
+            <div class="stat"><b>{{ data.metrics.duration_ms.samples }}</b><span>样本数</span></div>
+            <div class="stat"><b>{{ data.metrics.duration_ms.p50 }}</b><span>P50 毫秒</span></div>
+            <div class="stat"><b>{{ data.metrics.duration_ms.p90 }}</b><span>P90 毫秒</span></div>
+            <div class="stat"><b>{{ data.metrics.duration_ms.p99 }}</b><span>P99 毫秒</span></div>
+          </div>
+          {% if data.metrics.requests_by_path %}
+          <table class="skill-table">
+            <thead><tr><th>路径</th><th style="width:52%">占比</th><th>次数</th></tr></thead>
+            <tbody>
+              {% set top = data.metrics.requests_by_path.values()|list|first or 1 %}
+              {% for path, n in data.metrics.requests_by_path.items() %}
+              <tr>
+                <td class="mono">{{ path }}</td>
+                <td>
+                  <span style="display:block;height:8px;border-radius:4px;background:var(--brand-100)">
+                    <span style="display:block;height:8px;border-radius:4px;background:var(--brand);width:{{ (n / top * 100)|round(1) }}%"></span>
+                  </span>
+                </td>
+                <td>{{ n }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="empty"><span class="empty-ic">📈</span>还没有采样数据</div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">最近被拒绝的请求</span>
+          <span style="color:var(--text-3);font-size:12.5px">
+            只显示本班或未归属记录，跨班明细不可见
+          </span>
+        </div>
+        <div class="card-body" style="padding:0">
+          {% if data.recent_denials %}
+          <table class="skill-table">
+            <thead><tr><th>时间</th><th>操作人</th><th>请求</th><th>状态</th><th>request_id</th></tr></thead>
+            <tbody>
+              {% for e in data.recent_denials %}
+              <tr>
+                <td>{{ e.ts|localtime }}</td>
+                <td>{{ e.actor or '（未登录）' }}</td>
+                <td class="mono">{{ e.method }} {{ e.path }}</td>
+                <td><span class="badge badge-warn">{{ e.status }}</span> {{ e.code }}</td>
+                <td class="mono" style="font-size:11.5px">{{ e.request_id }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="empty"><span class="empty-ic">🛡️</span>没有拒绝记录</div>
+          {% endif %}
+        </div>
+        <div class="card-note">
+          同一 request_id 可在应用日志里串起完整处理链路——这是追踪那一根支柱。
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">数据出口</span>
+        </div>
+        <div class="card-body">
+          <p style="margin:0 0 8px;color:var(--text-2);font-size:13px">
+            面板之外还有两个机器可读出口，供抓取与巡检使用：
+          </p>
+          <table class="skill-table">
+            <tbody>
+              <tr>
+                <td class="mono">GET /metrics</td>
+                <td>Prometheus 文本格式，匿名可读</td>
+              </tr>
+              <tr>
+                <td class="mono">GET /api/health/alerts</td>
+                <td>告警判定 JSON，匿名可读（不含账号与内容）</td>
+              </tr>
+              <tr>
+                <td class="mono">GET /api/observability</td>
+                <td>面板同款完整快照，需教师身份</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// 面板每 10 秒拉一次 JSON 刷新数字，不整页重载，避免看着闪。
+(async function () {
+  const api = "{{ url_for('dashboard.observability_api') }}";
+  async function refresh() {
+    try {
+      const resp = await fetch(api, {headers: {"Accept": "application/json"}});
+      if (!resp.ok) return;
+      const d = await resp.json();
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set("kpi-requests", d.metrics.requests_total);
+      set("kpi-p95", d.metrics.duration_ms.p95);
+      set("kpi-index-failed", d.db.index_failed);
+      set("kpi-tasks", d.db.tasks_pending);
+      set("kpi-denials", d.db.denials_window);
+    } catch (e) { /* 面板刷新失败不打扰用户，下一次再试 */ }
+  }
+  setInterval(refresh, 10000);
+})();
+</script>
+{% endblock %}

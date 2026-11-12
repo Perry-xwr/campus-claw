@@ -1,0 +1,57 @@
+{
+  "source": "data\\app.db",
+  "verdict": {
+    "status": "ok",
+    "checked_at": "2026-11-12T19:21:20+08:00",
+    "rule_count": 5,
+    "passed": 5,
+    "alerts": [],
+    "rules": [
+      {
+        "id": "db_probe",
+        "level": "critical",
+        "title": "数据库可用",
+        "value": "ok",
+        "threshold": "ok",
+        "ok": true,
+        "hint": "库不可用时所有接口都会失败，先恢复服务再谈其他指标"
+      },
+      {
+        "id": "index_failed",
+        "level": "critical",
+        "title": "索引失败的材料数",
+        "value": 0,
+        "threshold": 0,
+        "ok": true,
+        "hint": "失败的材料对学生不可检索；检查 worker 日志与 embedding 配置"
+      },
+      {
+        "id": "tasks_pending",
+        "level": "warning",
+        "title": "待处理任务数",
+        "value": 0,
+        "threshold": 50,
+        "ok": true,
+        "hint": "积压持续上升说明 worker 跟不上或已停摆"
+      },
+      {
+        "id": "http_p95_ms",
+        "level": "warning",
+        "title": "请求 P95 延迟（毫秒）",
+        "value": 0.0,
+        "threshold": 500.0,
+        "ok": true,
+        "hint": "样本 0 条，少于 20 条，暂不判定"
+      },
+      {
+        "id": "audit_denials",
+        "level": "warning",
+        "title": "最近 60 分钟被拒绝请求数",
+        "value": 0,
+        "threshold": 200,
+        "ok": true,
+        "hint": "突增可能是被扫描或被刷；到审计页按 status / actor 下钻"
+      }
+    ]
+  }
+}
