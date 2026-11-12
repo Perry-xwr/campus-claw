@@ -12,9 +12,9 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, redirect, render_template, url_for
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
-from campusclaw import observability
+from campusclaw import audit_db, observability
 from campusclaw import request_context as rc
 from campusclaw.errors import ApiError, MESSAGES
 
@@ -31,13 +31,31 @@ def _require_teacher_api() -> dict:
 
 @bp.get("/dashboard")
 def dashboard_page():
-    """监控面板。学生重定向到材料页——面板是运维视角，不是学生功能。"""
+    """监控面板。学生重定向到材料页——面板是运维视角，不是学生功能。
+
+    ``?request_id=`` 为追踪回查入口：把一次请求的审计段与技能调用段按时间串起来。
+    """
     user = rc.require_page_auth()
     if user["role"] != "teacher":
         return redirect(url_for("pages.materials_page"))
-    data = observability.collect(rc.get_conn(), class_id=int(user["class_id"]))
+    conn = rc.get_conn()
+    data = observability.collect(conn, class_id=int(user["class_id"]))
+    wanted = (request.args.get("request_id") or "").strip()[: audit_db.MAX_REQUEST_ID]
+    trace = None
+    if wanted:
+        trace = audit_db.trace_request(conn, wanted)
+        class_id = int(user["class_id"])
+        trace["steps"] = [
+            s for s in trace["steps"]
+            if s["class_id"] is None or int(s["class_id"]) == class_id
+        ]
+        trace["count"] = len(trace["steps"])
+        trace["found"] = bool(trace["steps"])
+        for step in trace["steps"]:
+            step.pop("class_id", None)
     return render_template(
-        "dashboard.html", user=user, data=data, csrf_token=rc.ensure_csrf_token()
+        "dashboard.html", user=user, data=data, trace=trace,
+        trace_query=wanted, csrf_token=rc.ensure_csrf_token()
     )
 
 

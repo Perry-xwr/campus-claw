@@ -50,7 +50,7 @@
         <p>
           服务健康度实时判定：<span class="badge {{ st_badge }}">{{ st_text }}</span>
           <span style="color:var(--text-3);font-size:12.5px;margin-left:8px">
-            判定时间 {{ data.checked_at }}，共 {{ data.rules|length }} 条规则，通过 {{ data.rules|selectattr('ok')|list|length }} 条
+            判定时间 {{ data.checked_at }}，共 {{ data.rules|length }} 条规则，通过 {{ data.passed }} 条{% if data.skipped %}，跳过 {{ data.skipped }} 条{% endif %}
           </span>
         </p>
       </div>
@@ -121,7 +121,9 @@
                 <td>{{ r.value }}</td>
                 <td>{{ r.threshold }}</td>
                 <td>
-                  {% if r.ok %}
+                  {% if r.skipped %}
+                  <span class="badge badge-neutral" title="{{ r.hint }}">跳过</span>
+                  {% elif r.ok %}
                   <span class="badge badge-ok">通过</span>
                   {% else %}
                   <span class="badge {{ 'badge-danger' if r.level == 'critical' else 'badge-warn' }}">未通过</span>
@@ -188,7 +190,11 @@
                 <td>{{ e.actor or '（未登录）' }}</td>
                 <td class="mono">{{ e.method }} {{ e.path }}</td>
                 <td><span class="badge badge-warn">{{ e.status }}</span> {{ e.code }}</td>
-                <td class="mono" style="font-size:11.5px">{{ e.request_id }}</td>
+                <td class="mono" style="font-size:11.5px">
+                  {% if e.request_id %}
+                  <a href="{{ url_for('dashboard.dashboard_page', request_id=e.request_id) }}">{{ e.request_id }}</a>
+                  {% else %}—{% endif %}
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -198,7 +204,84 @@
           {% endif %}
         </div>
         <div class="card-note">
-          同一 request_id 可在应用日志里串起完整处理链路——这是追踪那一根支柱。
+          request_id 是追踪那一根支柱的键：同一个值能把「这次操作」和它触发的技能调用串成一条链，
+          上面的「请求追踪」直接按它回查，不必在日志里按秒数猜哪几条属于同一次操作。
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">请求追踪</span>
+          <span style="color:var(--text-3);font-size:12.5px">
+            拿响应头里的 <span class="mono">X-Request-Id</span> 回查一次请求的完整链路
+          </span>
+        </div>
+        <div class="card-body">
+          <form method="get" action="{{ url_for('dashboard.dashboard_page') }}"
+                style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+            <input type="text" name="request_id" value="{{ trace_query or '' }}"
+                   placeholder="req-xxxxxxxxxxxx" maxlength="64"
+                   style="flex:1;min-width:0;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-family:ui-monospace,monospace;font-size:13px">
+            <button type="submit" class="btn btn-primary">回查</button>
+            {% if trace_query %}
+            <a class="btn btn-ghost" href="{{ url_for('dashboard.dashboard_page') }}">清空</a>
+            {% endif %}
+          </form>
+
+          {% if trace is not none %}
+            {% if trace.found %}
+            <p style="margin:0 0 10px;color:var(--text-2);font-size:13px">
+              共 {{ trace.count }} 段，按时间升序——自顶向下读就是这次请求的执行顺序
+            </p>
+            <table class="skill-table">
+              <thead>
+                <tr><th>时间</th><th>来源</th><th>动作</th><th>对象</th><th>结果</th><th>耗时</th></tr>
+              </thead>
+              <tbody>
+                {% for s in trace.steps %}
+                <tr>
+                  <td style="font-size:12px">{{ s.at }}</td>
+                  <td>
+                    {% if s.source == 'audit' %}
+                    <span class="badge badge-neutral">审计</span>
+                    {% else %}
+                    <span class="badge badge-brand">技能</span>
+                    {% endif %}
+                  </td>
+                  <td class="mono">{{ s.action or '—' }}</td>
+                  <td class="mono" style="font-size:12px">
+                    {{ s.method }} {{ s.path }}
+                    {%- if s.object_id and s.object_id != (s.method ~ ' ' ~ s.path) %}
+                    <br><span style="color:var(--text-3)">{{ s.object_id }}</span>
+                    {%- endif %}
+                  </td>
+                  <td>
+                    {% if s.status and s.status >= 400 %}
+                    <span class="badge badge-warn">{{ s.outcome }}</span>
+                    {% else %}
+                    <span class="badge badge-ok">{{ s.outcome or '—' }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ (s.duration_ms ~ ' ms') if s.duration_ms is not none else '—' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <div class="empty">
+              <span class="empty-ic">🔍</span>
+              没有找到 <span class="mono">{{ trace_query }}</span> 的记录
+            </div>
+            <p style="margin:12px 0 0;color:var(--text-3);font-size:12.5px">
+              只有会改变状态的请求（POST / PUT / PATCH / DELETE）与被拒绝的请求才留链路段，
+              读请求不落盘，避免审计表变成访问日志的副本。
+            </p>
+            {% endif %}
+          {% else %}
+          <p style="margin:0;color:var(--text-3);font-size:12.5px">
+            下方「最近被拒绝的请求」表格里的 request_id 可直接点进来。
+          </p>
+          {% endif %}
         </div>
       </section>
 

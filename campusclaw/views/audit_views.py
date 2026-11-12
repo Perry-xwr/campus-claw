@@ -62,3 +62,31 @@ def list_audit_events():
         e for e in events if e["class_id"] is None or int(e["class_id"]) == class_id
     ]
     return jsonify({"events": visible, "count": len(visible)}), 200
+
+
+@bp.get("/api/audit/trace/<request_id>")
+def trace_one_request(request_id: str):
+    """按 request_id 回查一次请求的完整链路。
+
+    响应头里的 ``X-Request-Id`` 就是入口：用户报「刚才那次操作失败了」时，
+    拿这个值就能把被拒绝的审计段与被调用的技能段按时间串成一条链，
+    不必在几十条日志里按秒数猜哪几条属于同一次操作。
+    """
+    user = _require_teacher()
+    if not request_id or len(request_id) > audit_db.MAX_REQUEST_ID:
+        raise ApiError(400, "INVALID_INPUT", "request_id 须为 1～64 个字符")
+
+    trace = audit_db.trace_request(rc.get_conn(), request_id)
+    class_id = int(user["class_id"])
+    steps = [
+        s for s in trace["steps"]
+        if s["class_id"] is None or int(s["class_id"]) == class_id
+    ]
+    for step in steps:
+        step.pop("class_id", None)
+    return jsonify({
+        "request_id": trace["request_id"],
+        "found": bool(steps),
+        "count": len(steps),
+        "steps": steps,
+    }), 200

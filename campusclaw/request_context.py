@@ -246,6 +246,9 @@ def register_request_tracking(app: Flask) -> None:
                 metrics.observe_from_g(g, response.status_code)
             except Exception:  # pragma: no cover - 指标失败绝不影响响应
                 logger.exception("记录请求指标失败")
+        # 第 10 课追踪：为「会产生副作用」的请求落一个链路段，让 request_id
+        # 能把「这次操作」与它触发的技能调用串起来；读请求不落，避免日志被淹没。
+        audit_state_changing_request(response.status_code)
         return response
 
 
@@ -257,17 +260,27 @@ def _request_duration_ms() -> int | None:
 
 
 def _actor_snapshot() -> tuple[int | None, str, int | None]:
-    """取当前操作人；未认证或被拒绝的请求没有身份，返回空值而不是抛错。"""
+    """取当前操作人；未认证或被拒绝的请求没有身份，返回空值而不是抛错。
+
+    注意键名：``sessions.load_session_user`` 返回的是 ``user_id`` 而不是 ``id``
+    （``id`` 已被会话主键占用为 ``session_pk`` 之外的字段名）。早先这里取
+    ``user["id"]``，KeyError 被下面的 except 吞掉后 ``actor_id`` 恒为 NULL——
+    ``actor`` 用户名照常有值，所以表面看不出问题，但审计与 ``users`` 表的关联键断了。
+    两个键名都试，避免再被类似改名打穿。
+    """
     try:
         user = current_user()
     except Exception:  # pragma: no cover - 身份解析异常不得影响审计出口
         return None, "", None
     if not user:
         return None, "", None
-    try:
-        actor_id = int(user["id"])
-    except (KeyError, TypeError, ValueError):
-        actor_id = None
+    actor_id = None
+    for key in ("user_id", "id"):
+        try:
+            actor_id = int(user[key])
+            break
+        except (KeyError, TypeError, ValueError):
+            continue
     try:
         class_id = int(user["class_id"])
     except (KeyError, TypeError, ValueError):
@@ -308,3 +321,46 @@ def audit_rejected_request(status: int, code: str, detail: str = "") -> None:
     except Exception:
         # 审计不得影响主流程：磁盘满、表缺失等一律降级为应用日志。
         logger.exception("写入拒绝审计失败：%s %s", status, code)
+
+
+#: 会改变服务端状态的方法；只有这些请求需要作为「链路段」留痕。
+STATE_CHANGING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def audit_state_changing_request(status: int) -> None:
+    """给已认证的写请求落一条 ``api.request`` 链路段（第 10 课追踪）。
+
+    为什么只记写请求：读请求每秒可能有几十条，全记会把 ``audit_events``
+    变成访问日志的副本；而排查「我刚才那次操作没生效」时真正要追的是写操作。
+
+    已被判为拒绝的请求不再重复记（``api.reject`` 已是更精确的那一段）。
+    """
+    try:
+        if request.method not in STATE_CHANGING_METHODS:
+            return
+        if getattr(g, "_audit_rejection_logged", False):
+            return
+        path = request.path or ""
+        if path.startswith(("/metrics", "/health")):
+            return
+        actor_id, actor, class_id = _actor_snapshot()
+        if actor_id is None:
+            return
+        g._audit_rejection_logged = True
+        audit_db.record_event(
+            get_conn(),
+            status=int(status),
+            code="OK" if status < 400 else "ERROR",
+            action="api.request",
+            actor=actor,
+            actor_id=actor_id,
+            class_id=class_id,
+            object_type="api",
+            object_id=f"{request.method} {path}",
+            method=request.method,
+            path=path,
+            request_id=str(getattr(g, "request_id", "") or ""),
+            duration_ms=_request_duration_ms(),
+        )
+    except Exception:
+        logger.exception("写入请求链路段失败：%s", request.method)

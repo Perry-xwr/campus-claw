@@ -169,3 +169,69 @@ def list_events(
 def count_events(conn: sqlite3.Connection) -> int:
     row = conn.execute("SELECT COUNT(*) AS n FROM audit_events").fetchone()
     return int(row["n"]) if row is not None else 0
+
+
+def trace_request(conn: sqlite3.Connection, request_id: str) -> dict[str, Any]:
+    """按 request_id 把一次请求的多段日志串起来（第 10 课观测三支柱之一：追踪）。
+
+    一次请求可能留下两类记录，分散在两张表：
+
+    * ``audit_events``——被拒绝的那一段（403 / 401 / 404）
+    * ``mcp_tool_calls``——技能被调用的那一段（成功与失败都记）
+
+    只靠「按时间倒序看日志列表」很难回答「这次请求到底发生了什么」，
+    因为同一秒里可能混着别的请求。``request_id`` 是唯一能把两段合成一条链的键。
+
+    返回按时间升序排好的链路（自顶向下读就是请求的执行顺序），以及是否命中。
+    """
+    rid = (request_id or "").strip()[:MAX_REQUEST_ID]
+    if not rid:
+        return {"request_id": "", "found": False, "steps": [], "count": 0}
+
+    steps: list[dict[str, Any]] = []
+
+    try:
+        rows = conn.execute(
+            """
+            SELECT ts AS at, 'audit' AS source, class_id, action, method, path,
+                   status, code, actor, skill_id, object_type, object_id,
+                   duration_ms, tokens, detail
+            FROM audit_events
+            WHERE request_id = ?
+            """,
+            (rid,),
+        ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    for row in rows:
+        item = dict(row)
+        item["outcome"] = f"{item['status']} {item['code']}".strip()
+        steps.append(item)
+
+    # 技能调用表在 SEC-07 之前建的库里可能缺 request_id 列，缺失时只返回审计段。
+    try:
+        rows = conn.execute(
+            """
+            SELECT created_at AS at, 'tool_call' AS source, class_id, action,
+                   '' AS method, '' AS path, NULL AS status, status AS code,
+                   '' AS actor, skill_id, 'tool' AS object_type,
+                   tool_ref AS object_id, duration_ms, tokens, detail
+            FROM mcp_tool_calls
+            WHERE request_id = ?
+            """,
+            (rid,),
+        ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    for row in rows:
+        item = dict(row)
+        item["outcome"] = str(item.get("code") or "")
+        steps.append(item)
+
+    steps.sort(key=lambda s: (s.get("at") or "", s.get("source") or ""))
+    return {
+        "request_id": rid,
+        "found": bool(steps),
+        "count": len(steps),
+        "steps": steps,
+    }

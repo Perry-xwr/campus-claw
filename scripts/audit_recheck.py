@@ -112,8 +112,8 @@ def query_rejections(conn: sqlite3.Connection, window_start: str) -> list[dict]:
         return []
     rows = conn.execute(
         """
-        SELECT id, ts, request_id, actor, class_id, action, object_id, method,
-               path, status, code, duration_ms
+        SELECT id, ts, request_id, actor, actor_id, class_id, action, object_id,
+               method, path, status, code, duration_ms
         FROM audit_events
         WHERE ts >= ?
         ORDER BY id DESC
@@ -186,6 +186,21 @@ def main() -> int:
     if not rejections and not args.allow_empty:
         failures.append("audit_events 为空：被拒绝的请求未留痕（重放一次越权请求后重跑）")
 
+    # 关联键断言：有用户名的记录必须有 user_id。
+    #
+    # 这条断言来自一次真实缺陷：``_actor_snapshot`` 曾取 ``user["id"]``，而会话上下文
+    # 返回的键是 ``user_id``，KeyError 被吞掉后 ``actor_id`` 恒为 NULL。用户名照常有值，
+    # 表格看上去「七列齐备」，但审计与 users 表的关联键断了——只能按名字模糊匹配，
+    # 用户改名或多班同名就无法定位到人。只查「列在不在」抓不到这种空值，必须查取值。
+    orphan_actors = [
+        r for r in rejections if not _blank(r.get("actor")) and r.get("actor_id") is None
+    ]
+    if orphan_actors:
+        failures.append(
+            f"{len(orphan_actors)} 条拒绝记录有用户名但 actor_id 为空："
+            f"#{'、#'.join(str(r.get('id')) for r in orphan_actors[:5])}"
+        )
+
     lines: list[str] = []
     lines.append("# 审计日志回查（SEC-07）")
     lines.append("")
@@ -194,6 +209,11 @@ def main() -> int:
     lines.append(f"- 时间窗：最近 {args.window_minutes} 分钟")
     lines.append(f"- 技能调用记录：{len(calls)} 条，七列齐备 {complete_rows} 条")
     lines.append(f"- 拒绝尝试记录：{len(rejections)} 条")
+    lines.append(
+        "- 关联键断言："
+        + ("通过（有用户名的记录均带 actor_id）" if not orphan_actors
+           else f"未通过（{len(orphan_actors)} 条 actor_id 为空）")
+    )
     if migrated_from:
         after = _columns(conn, "mcp_tool_calls")
         added = sorted(after - migrated_from)

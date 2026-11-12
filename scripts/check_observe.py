@@ -86,11 +86,16 @@ def main() -> int:
 
     print(f"数据来源：{source}")
     print(f"判定时间：{verdict.get('checked_at', '')}")
-    print(f"规则数：{len(rules)}，未通过：{len(alerts)}")
+    print(f"规则数：{len(rules)}，未通过：{len(alerts)}，跳过：{verdict.get('skipped', 0)}")
     print("")
     print(f"{'规则':<20}{'判定项':<28}{'实际':<12}{'阈值':<10}结果")
     for r in rules:
-        mark = "通过" if r.get("ok") else f"未通过({r.get('level')})"
+        if r.get("skipped"):
+            mark = "跳过"
+        elif r.get("ok"):
+            mark = "通过"
+        else:
+            mark = f"未通过({r.get('level')})"
         print(f"{str(r.get('id')):<20}{str(r.get('title')):<28}"
               f"{str(r.get('value')):<12}{str(r.get('threshold')):<10}{mark}")
     print("")

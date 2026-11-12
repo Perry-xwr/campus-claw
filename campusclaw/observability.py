@@ -61,7 +61,14 @@ def _scalar(conn: sqlite3.Connection, sql: str, default: int = 0) -> int:
 
 
 def _rule(rule_id: str, level: str, title: str, value: Any, threshold: Any,
-          ok: bool, hint: str) -> dict[str, Any]:
+          ok: bool, hint: str, skipped: bool = False) -> dict[str, Any]:
+    """一条规则的三态结果：通过 / 未通过 / 跳过。
+
+    ``skipped`` 与 ``ok`` 不是一回事：样本不足时判「跳过」，不判「通过」。
+    早先把样本不足直接算通过，面板上就是一条绿色的「请求 P95 延迟 0.0」——
+    零样本必然满足阈值，这种绿是假绿，会让人以为指标在正常范围内。
+    判据表里「没人试过」既不是红也不是绿，这里同理。
+    """
     return {
         "id": rule_id,
         "level": level,
@@ -69,6 +76,7 @@ def _rule(rule_id: str, level: str, title: str, value: Any, threshold: Any,
         "value": value,
         "threshold": threshold,
         "ok": bool(ok),
+        "skipped": bool(skipped),
         "hint": hint,
     }
 
@@ -105,9 +113,11 @@ def _check_latency(snapshot: dict[str, Any]) -> dict[str, Any]:
     min_samples = int(THRESHOLDS["p95_min_samples"])
     if samples < min_samples:
         # 样本不足不下结论：冷启动阶段几次慢请求会把 P95 拉高，误报比漏报更消耗信任。
+        # 但也不许判「通过」——零样本时 P95 恒为 0，必然满足阈值，那是假绿。
         return _rule("http_p95_ms", "warning", "请求 P95 延迟（毫秒）",
-                     round(p95, 2), limit, True,
-                     f"样本 {samples} 条，少于 {min_samples} 条，暂不判定")
+                     round(p95, 2) if samples else "无样本", limit, True,
+                     f"样本 {samples} 条，少于 {min_samples} 条，暂不判定",
+                     skipped=True)
     return _rule("http_p95_ms", "warning", "请求 P95 延迟（毫秒）", round(p95, 2), limit,
                  p95 <= limit, "先看是哪条路径慢，再看是否缺索引或下游超时")
 
@@ -139,8 +149,9 @@ def evaluate(conn: sqlite3.Connection, snapshot: dict[str, Any] | None = None) -
         _check_latency(snap),
         _check_denials(conn),
     ]
-    alerts = [r for r in rules if not r["ok"]]
+    alerts = [r for r in rules if not r["ok"] and not r["skipped"]]
     alerts.sort(key=lambda r: _LEVEL_ORDER.get(r["level"], 9))
+    skipped = [r for r in rules if r["skipped"]]
 
     if any(a["level"] == "critical" for a in alerts):
         status = "critical"
@@ -153,7 +164,8 @@ def evaluate(conn: sqlite3.Connection, snapshot: dict[str, Any] | None = None) -
         "status": status,
         "checked_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "rule_count": len(rules),
-        "passed": len(rules) - len(alerts),
+        "passed": len(rules) - len(alerts) - len(skipped),
+        "skipped": len(skipped),
         "alerts": alerts,
         "rules": rules,
     }
@@ -170,11 +182,14 @@ def _recent_denials(conn: sqlite3.Connection, limit: int = 10,
         "SELECT ts, actor, method, path, status, code, request_id, class_id "
         "FROM audit_events {where} ORDER BY ts DESC, id DESC LIMIT ?"
     )
-    where = ""
+    # 只取拒绝类状态码：audit_events 里还有 api.request 链路段（写请求留痕），
+    # 那些是 2xx，混进「最近拒绝」会把真正要看的越权尝试挤出列表。
+    conditions = ["status IN (401, 403, 404)"]
     params: list[Any] = []
     if class_id is not None:
-        where = "WHERE class_id IS NULL OR class_id = ?"
+        conditions.append("(class_id IS NULL OR class_id = ?)")
         params.append(int(class_id))
+    where = "WHERE " + " AND ".join(conditions)
     params.append(int(limit))
     try:
         rows = conn.execute(sql.format(where=where), params).fetchall()
@@ -238,6 +253,9 @@ def collect(conn: sqlite3.Connection, class_id: int | None = None) -> dict[str, 
         },
         "alerts": verdict["alerts"],
         "rules": verdict["rules"],
+        "rule_count": verdict["rule_count"],
+        "passed": verdict["passed"],
+        "skipped": verdict["skipped"],
         "recent_denials": _recent_denials(conn, class_id=class_id),
         "thresholds": dict(THRESHOLDS),
     }
