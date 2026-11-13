@@ -1,14 +1,14 @@
 # CampusClaw 一键检查入口（第 8–10 课）
-# 用法：make check-security / check-async / check-apitest / check-audit / check
-# Windows 若无 GNU make，等价入口：pwsh -File scripts/check-all.ps1
+# 用法：make check / make check-security / check-async / check-apitest / check-audit …
+#
+# `make` 只是一层壳：真正的步骤清单在 scripts/check_all.py（顺序、参数、退出码）。
+# Windows 没有 GNU make 时，等价入口是同一条命令的后半截：
+#     python scripts/check_all.py
+# 单项目标也走这同一份清单（--only），所以不存在「Makefile 与脚本各写一套参数」
+# 的漂移——DEF-07（check-compose 被写成字面量 /n/t 却没人发现）正是漂移的产物。
 
 PYTHON ?= python
-EVIDENCE := reports/evidence
-# 审计回查默认读运行库；CI 或干净环境没有库时用 --allow-empty 跳过数据断言，
-# 结构断言（七列是否齐备）仍然生效。
-AUDIT_DB ?= data/app.db
-# 告警判定同样读运行库；没有库时脚本跳过判定（结构由审计项覆盖）。
-OBSERVE_DB ?= data/app.db
+GATE := $(PYTHON) scripts/check_all.py
 
 .PHONY: help check check-security check-async check-apitest check-audit check-observe check-compose check-bench
 
@@ -20,27 +20,30 @@ help:
 	@echo make check-observe   第 10 课运行观测告警判定（critical 即红）
 	@echo make check-compose   容器配置静态校验（不需要 Docker）
 	@echo make check-bench     第 10 课压测基线（需先启动实例）
-	@echo make check           以上六项一起跑（门禁入口，红即退出码非 0）
+	@echo make check           六项一起跑（= python scripts/check_all.py，红即退出码非 0）
 
 check-security:
-	$(PYTHON) scripts/check_security.py --out $(EVIDENCE)/security-baseline.json
+	$(GATE) --only security
 
 check-async:
-	$(PYTHON) scripts/acceptance_async.py --out $(EVIDENCE)/async-acceptance.json
+	$(GATE) --only async
 
 check-apitest:
-	$(PYTHON) apitest/run_all.py --no-report
+	$(GATE) --only apitest
 
 check-audit:
-	$(PYTHON) scripts/audit_recheck.py --db $(AUDIT_DB) --out reports/audit-recheck.md --allow-empty
+	$(GATE) --only audit
 
 check-observe:
-	$(PYTHON) scripts/check_observe.py --db $(OBSERVE_DB) --out $(EVIDENCE)/observe.json
+	$(GATE) --only observe
 
 check-compose:
-	$(PYTHON) scripts/check_compose.py --out $(EVIDENCE)/compose-static.json
+	$(GATE) --only compose
 
+# 压测不进 `check`：它需要一个已经跑起来的实例，且会写库，
+# 不适合作门禁的一部分（门禁必须能在任何干净环境里离线跑出同样的结果）。
 check-bench:
 	$(PYTHON) scripts/bench.py --vus $(or $(VUS),20) --duration $(or $(DURATION),60)
 
-check: check-security check-async check-apitest check-audit check-observe check-compose
+check:
+	$(GATE)
