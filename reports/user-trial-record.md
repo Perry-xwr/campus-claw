@@ -253,7 +253,7 @@ if not once:
 
 | 项 | 值 |
 | --- | --- |
-| 代码版本 | `main` @ `805d82d`（含 DEF-11 修复，本地 ahead 6 未推） |
+| 代码版本 | `main` @ `805d82d`（含 DEF-11 修复）。**当时本地 ahead 6 未推**；该批次结束后已全部推送，当前 `main` = `6702522` |
 | Web | `scripts/trial_start.py --seconds 3600`，监听 `0.0.0.0:8080` |
 | Worker | `python -m campusclaw.index_worker`（常驻，另开一终端） |
 | 可达性 | 回环 `302`、局域网 `http://172.20.10.2:8080` `302`、`/login` `200` |
