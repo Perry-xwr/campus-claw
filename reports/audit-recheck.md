@@ -1,10 +1,11 @@
 # 审计日志回查（SEC-07）
 
-- 生成时间：2026-11-13 00:13:03
+- 生成时间：2026-11-13 21:10:24
 - 数据库：`data/app.db`
-- 时间窗：最近 120 分钟
+- 时间窗：不限（全部历史，原文只列最近 5 条）
 - 技能调用记录：8 条，七列齐备 8 条
-- 拒绝尝试记录：27 条
+- 最近一条调用：`2026-11-12T16:09:02.936108+00:00`（距今 21 小时）
+- 拒绝尝试记录：35 条
 - 关联键断言：通过（有用户名的记录均带 actor_id）
 - 表结构断言：通过（七列齐备）
 
@@ -102,84 +103,9 @@
 ```json
 [
   {
-    "id": 27,
-    "ts": "2026-11-12T16:11:53.317971+00:00",
-    "request_id": "req-e5d924d07ae0",
-    "actor": "student_b1",
-    "actor_id": 3,
-    "class_id": 2,
-    "action": "api.reject",
-    "object_id": "GET /api/materials/1",
-    "method": "GET",
-    "path": "/api/materials/1",
-    "status": 404,
-    "code": "MATERIAL_NOT_FOUND",
-    "duration_ms": 4
-  },
-  {
-    "id": 26,
-    "ts": "2026-11-12T16:11:49.772161+00:00",
-    "request_id": "req-7227bf744937",
-    "actor": "student_a1",
-    "actor_id": 2,
-    "class_id": 1,
-    "action": "api.request",
-    "object_id": "POST /api/submissions",
-    "method": "POST",
-    "path": "/api/submissions",
-    "status": 202,
-    "code": "OK",
-    "duration_ms": 6
-  },
-  {
-    "id": 25,
-    "ts": "2026-11-12T16:09:59.937306+00:00",
-    "request_id": "req-57b48e14ac31",
-    "actor": "student_b1",
-    "actor_id": 3,
-    "class_id": 2,
-    "action": "api.reject",
-    "object_id": "GET /api/materials/1",
-    "method": "GET",
-    "path": "/api/materials/1",
-    "status": 404,
-    "code": "MATERIAL_NOT_FOUND",
-    "duration_ms": 4
-  },
-  {
-    "id": 24,
-    "ts": "2026-11-12T16:09:54.856347+00:00",
-    "request_id": "req-e02e34959c6b",
-    "actor": "student_a1",
-    "actor_id": 2,
-    "class_id": 1,
-    "action": "api.request",
-    "object_id": "POST /api/submissions",
-    "method": "POST",
-    "path": "/api/submissions",
-    "status": 202,
-    "code": "OK",
-    "duration_ms": 7
-  },
-  {
-    "id": 23,
-    "ts": "2026-11-12T16:09:40.884721+00:00",
-    "request_id": "req-6f558851de87",
-    "actor": "teacher_a",
-    "actor_id": 1,
-    "class_id": 1,
-    "action": "api.request",
-    "object_id": "POST /login",
-    "method": "POST",
-    "path": "/login",
-    "status": 302,
-    "code": "OK",
-    "duration_ms": 202
-  },
-  {
-    "id": 22,
-    "ts": "2026-11-12T16:09:34.947704+00:00",
-    "request_id": "req-0631841a4768",
+    "id": 35,
+    "ts": "2026-11-12T16:16:15.732633+00:00",
+    "request_id": "req-2b0cbc75cb81",
     "actor": "student_a1",
     "actor_id": 2,
     "class_id": 1,
@@ -192,9 +118,24 @@
     "duration_ms": 8
   },
   {
-    "id": 21,
-    "ts": "2026-11-12T16:09:34.934924+00:00",
-    "request_id": "req-f5af445199a0",
+    "id": 34,
+    "ts": "2026-11-12T16:16:15.718768+00:00",
+    "request_id": "req-14f3df9e845d",
+    "actor": "student_a1",
+    "actor_id": 2,
+    "class_id": 1,
+    "action": "api.request",
+    "object_id": "POST /api/submissions",
+    "method": "POST",
+    "path": "/api/submissions",
+    "status": 202,
+    "code": "OK",
+    "duration_ms": 8
+  },
+  {
+    "id": 33,
+    "ts": "2026-11-12T16:16:15.693617+00:00",
+    "request_id": "req-21c1000fa54c",
     "actor": "student_a1",
     "actor_id": 2,
     "class_id": 1,
@@ -207,9 +148,9 @@
     "duration_ms": 7
   },
   {
-    "id": 20,
-    "ts": "2026-11-12T16:09:34.921294+00:00",
-    "request_id": "req-857af5a84a13",
+    "id": 32,
+    "ts": "2026-11-12T16:16:15.682193+00:00",
+    "request_id": "req-c0ee59fb8e3c",
     "actor": "student_a1",
     "actor_id": 2,
     "class_id": 1,
@@ -220,6 +161,66 @@
     "status": 202,
     "code": "OK",
     "duration_ms": 7
+  },
+  {
+    "id": 31,
+    "ts": "2026-11-12T16:16:09.399211+00:00",
+    "request_id": "req-70d4ccd187ff",
+    "actor": "teacher_a",
+    "actor_id": 1,
+    "class_id": 1,
+    "action": "api.request",
+    "object_id": "POST /login",
+    "method": "POST",
+    "path": "/login",
+    "status": 302,
+    "code": "OK",
+    "duration_ms": 208
+  },
+  {
+    "id": 30,
+    "ts": "2026-11-12T16:13:51.022567+00:00",
+    "request_id": "req-f221bcdbecb0",
+    "actor": "teacher_a",
+    "actor_id": 1,
+    "class_id": 1,
+    "action": "api.request",
+    "object_id": "POST /api/search",
+    "method": "POST",
+    "path": "/api/search",
+    "status": 200,
+    "code": "OK",
+    "duration_ms": 4
+  },
+  {
+    "id": 29,
+    "ts": "2026-11-12T16:13:51.012985+00:00",
+    "request_id": "req-982e140aa3dc",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
+    "action": "api.request",
+    "object_id": "POST /api/search",
+    "method": "POST",
+    "path": "/api/search",
+    "status": 200,
+    "code": "OK",
+    "duration_ms": 4
+  },
+  {
+    "id": 28,
+    "ts": "2026-11-12T16:13:50.991047+00:00",
+    "request_id": "req-52bf01d8a5dd",
+    "actor": "teacher_a",
+    "actor_id": 1,
+    "class_id": 1,
+    "action": "api.request",
+    "object_id": "POST /api/search",
+    "method": "POST",
+    "path": "/api/search",
+    "status": 200,
+    "code": "OK",
+    "duration_ms": 4
   }
 ]
 ```

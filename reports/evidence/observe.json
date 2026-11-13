@@ -1,8 +1,8 @@
 {
-  "source": "data\\app.db",
+  "source": "data/app.db",
   "verdict": {
     "status": "ok",
-    "checked_at": "2026-11-13T00:13:04+08:00",
+    "checked_at": "2026-11-13T21:10:25+08:00",
     "rule_count": 5,
     "passed": 4,
     "skipped": 1,
@@ -32,7 +32,7 @@
         "id": "tasks_pending",
         "level": "warning",
         "title": "待处理任务数",
-        "value": 0,
+        "value": 4,
         "threshold": 50,
         "ok": true,
         "skipped": false,
@@ -52,7 +52,7 @@
         "id": "audit_denials",
         "level": "warning",
         "title": "最近 60 分钟被拒绝请求数",
-        "value": 27,
+        "value": 0,
         "threshold": 200,
         "ok": true,
         "skipped": false,

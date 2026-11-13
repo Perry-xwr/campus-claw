@@ -30,6 +30,14 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 
+def _display_path(path: Path) -> str:
+    """证据里写相对项目根的路径，避免绝对路径进版本库、换机复核对不上。"""
+    try:
+        return path.resolve().relative_to(_ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -78,7 +86,7 @@ def main() -> int:
             verdict = observability.evaluate(conn)
         finally:
             conn.close()
-        source = str(db_path)
+        source = _display_path(db_path)
 
     alerts = verdict.get("alerts") or []
     rules = verdict.get("rules") or []

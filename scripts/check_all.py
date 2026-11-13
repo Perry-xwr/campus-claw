@@ -34,6 +34,10 @@ EVIDENCE = ROOT / "reports" / "evidence"
 DB = ROOT / "data" / "app.db"
 PY = sys.executable
 
+#: 步骤可以返回这个码表示「跳过」（例如干净库里还没有任何技能调用可回查）。
+#: 它既不是红也不是绿：整体门禁放行，但汇总表必须单独显示，不能并入「通过」。
+SKIP_CODE = 75
+
 # (键, 标题, 参数)  —— 顺序即执行顺序：先结构、后数据，最后是配置静态校验。
 STEPS: list[tuple[str, str, list[str]]] = [
     ("security", "SEC-05 密钥扫描 + SEC-06 依赖基线",
@@ -106,7 +110,7 @@ def main() -> int:
         results.append((key, title, code, elapsed))
         if args.verbose and output.strip():
             print(output)
-        elif code != 0:
+        elif code not in (0, SKIP_CODE):
             # 失败时必须看到原因，否则只给一个非 0 退出码等于让人去猜。
             tail = "\n".join(output.strip().splitlines()[-15:])
             print(tail, file=sys.stderr)
@@ -116,11 +120,26 @@ def main() -> int:
     print(f"{'步骤':<10} {'项':<{width}} {'结果':<8} 耗时")
     print("-" * (width + 22))
     for key, title, code, elapsed in results:
-        verdict = "通过" if code == 0 else f"未通过({code})"
+        if code == 0:
+            verdict = "通过"
+        elif code == SKIP_CODE:
+            verdict = "跳过"
+        else:
+            verdict = f"未通过({code})"
         print(f"{key:<10} {title:<{width}} {verdict:<8} {elapsed:5.1f}s")
-    failed = [r for r in results if r[2] != 0]
+    failed = [r for r in results if r[2] not in (0, SKIP_CODE)]
+    skipped = [r for r in results if r[2] == SKIP_CODE]
     print("-" * (width + 22))
-    print(f"合计 {len(results)} 项，通过 {len(results) - len(failed)}，未通过 {len(failed)}")
+    print(
+        f"合计 {len(results)} 项，通过 {len(results) - len(failed) - len(skipped)}，"
+        f"跳过 {len(skipped)}，未通过 {len(failed)}"
+    )
+    if skipped:
+        print(
+            "跳过的项没有产出证据（例：库里还没有可回查的调用），"
+            "不得在报告里计为通过。",
+            file=sys.stderr,
+        )
     return 1 if failed else 0
 
 
