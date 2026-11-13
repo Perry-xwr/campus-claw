@@ -140,7 +140,7 @@ cd .acc10/clean-check2
 | compose | 容器配置静态校验 | 通过 | 8.6s |
 
 **合计 6 项，通过 5，跳过 1，未通过 0，退出码 0。** 完整输出留档在
-`reports/evidence/gate-clean-dir.log`。
+`reports/evidence/gate-clean-dir.md`。
 
 #### 为什么 audit 是「跳过」不是「通过」
 
@@ -184,7 +184,7 @@ check:
 | 补 `.env` 后四服务全起 | 是 |
 | 健康检查全过 | 是（app healthy、`/health` = ok） |
 | 空库自动初始化 + 预置账号可登录 | 是 |
-| 干净目录跑门禁退出码 0 | **是**（5 通过 + 1 跳过 + 0 未通过，见 `reports/evidence/gate-clean-dir.log`） |
+| 干净目录跑门禁退出码 0 | **是**（5 通过 + 1 跳过 + 0 未通过，见 `reports/evidence/gate-clean-dir.md`） |
 | 字面执行 `make check` | 未执行（本机无 GNU make）；`Makefile` 的该目标只有一行 `python scripts/check_all.py`，跑的是它 |
 
 **修复项（文档侧，不改代码）**：`README.md` 的「快速启动」需要明确写出

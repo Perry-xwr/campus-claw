@@ -29,7 +29,7 @@
 | # | 判据 | 结论 | 差在哪 | 证据指向 |
 | --- | --- | --- | --- | --- |
 | 1 | 一键测试挡得住坏提交 | **通过** | — | `reports/gate-red-green.md` |
-| 2 | 环境可复现 | **通过** | 干净目录（`git archive`）+ 全新 venv + 装依赖后门禁退出码 0（5 通过 + 1 跳过）；字面 `make check` 未敲（本机无 GNU make），跑的是它唯一一行等价命令 | `reports/boot-reproduce.md`、`reports/evidence/gate-clean-dir.log` |
+| 2 | 环境可复现 | **通过** | 干净目录（`git archive`）+ 全新 venv + 装依赖后门禁退出码 0（5 通过 + 1 跳过）；字面 `make check` 未敲（本机无 GNU make），跑的是它唯一一行等价命令 | `reports/boot-reproduce.md`、`reports/evidence/gate-clean-dir.md` |
 | 3 | 推送即构建 | **通过** | 流程 → 测试 → `docker build -t campusclaw:<SHA>`，镜像带 revision 标签可反查提交；无镜像仓库推送 | `reports/pipeline.md` |
 | 4 | 面板看得见技能 | **通过** | 四条曲线按技能分线在 `/claw/` 上出图；**无公网域名**，告警仍无外发通知 | `reports/observe-alert.md` |
 | 5 | 压测有前后对比 | **通过** | 同一脚本同一参数（vus=20、60s）缓存前后两轮：吞吐 +49.2%、P95 −34.5%；余量卡在审计写入 | `reports/bench.md` |

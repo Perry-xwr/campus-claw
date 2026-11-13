@@ -142,7 +142,7 @@ compose    容器配置静态校验             未通过(1)   0.5s
 | observe | 第 10 课运行观测判定 | 通过 |
 | compose | 容器配置静态校验 | 通过 |
 
-**合计 6 项，通过 5，跳过 1，未通过 0，退出码 0。** 原文见 `reports/evidence/gate-clean-dir.log`。
+**合计 6 项，通过 5，跳过 1，未通过 0，退出码 0。** 原文见 `reports/evidence/gate-clean-dir.md`。
 
 ### 7.3 第三个状态：跳过（DEF-10）
 
