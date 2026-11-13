@@ -19,28 +19,52 @@
 
 ## 二、「四步演示」指哪四步
 
-沿用第 10 课最终验收的走查四步（与 `reports/pipeline.md` 的展示口径一致）：
+**按界面上真实存在的动作定义**，不按 API 走查定义。两者在第 2、3 步上分岔，
+这一点必须写在前面，否则试用者会被记成「找不到入口」而不是「产品没这个入口」。
 
-| # | 动作 | 期望 |
-| --- | --- | --- |
-| 1 | `POST /api/login` 登录取令牌 | 200，拿到会话/令牌 |
-| 2 | `POST /api/tasks` 提交作业 | **202** + 任务标识 |
-| 3 | `GET /api/tasks/{id}` 轮询 | `pending → running → succeeded` 状态流转 |
-| 4 | 换另一班账号 `GET` 别班讲义/检索 | **404** 或空结果（跨班隔离） |
+| # | 界面上的动作 | 期望 | 用哪个账号 |
+| --- | --- | --- | --- |
+| 1 | 登录，并说清自己现在在哪个班 | 能自己找到并在页面上看到班级 | `student_a1` |
+| 2 | 上传一份自己的 `.md` / `.txt`，在材料列表里找到它 | 新材料出现在列表 | `teacher_a` |
+| 3 | 用刚上传材料里的一个词去检索（`知识检索` 页） | 结果里出现那份材料 | `student_a1` |
+| 4 | 换另一个账号检索同一个词 | **搜不到**（跨班隔离）；能否自己发现并说出原因，是观察重点 | `student_b1` |
 
-界面上对应的入口：`/materials`（材料）、`/knowledge`（检索）、`/qa`（答疑）、`/tutor`（解题助手）、
-`/dashboard`（教师面板）。给使用者时**只给地址与账号，不给操作说明**。
+### 为什么不用 API 走查那四步
+
+第 10 课验收用的自动走查四步是：登录 → `POST /api/submissions`（202 + `task_id`）
+→ 轮询 `GET /api/tasks/{id}`（`pending → running → succeeded`）→ 跨班 404。
+那套是**给开发侧自动化用的**（`scripts/h5_walkthrough.py` 已覆盖，实测全绿）。
+
+它不能直接拿去考真实用户，因为**界面上没有提交作业的入口**：页面路由只有
+`/materials`、`/knowledge`、`/tutor`、`/mcp` 与教师面板，作业提交只暴露了 API。
+让试用者在浏览器里找「提交作业」按钮，找到的概率是零——这记成 `❌`
+是在扣产品的分，不是在扣他的分。同理，状态流转 `pending → running → succeeded`
+在界面上没有可视化的进度视图，也不适合让人肉眼观察。
+
+所以：**API 四步用于自动化验收，界面四步用于真实用户试用**，两套都在，
+各自证明不同的东西。界面上缺少提交入口这一点，本身记作一条改进项
+（见本文档记录表的「去向」列与 `reports/user-trial-record.md` 的观察重点）。
+
+界面上对应的入口：`/materials`（材料）、`/knowledge`（检索）、`/qa`（答疑）、
+`/tutor`（解题助手）、`/dashboard`（教师面板）。给使用者时**只给地址与账号，不给操作说明**。
 
 ## 三、使用条件（已实测可用的部分）
 
+**起服务与地址**：`python scripts/trial_start.py` 一条命令，会打印信息卡（地址 + 四个账号 +
+一段可直接转发的话）。本轮实测本机出站地址是 `172.20.10.2`，属于**手机热点网段**——
+对方必须连同一个热点才打得开，详见 `reports/user-trial-record.md` 的「网络前提」。
+
 | 项 | 状态 |
 | --- | --- |
-| 账号 | `teacher_a` / `student_a1` / `student_b1`（口令见 `reports/user-trial-record.md`，开发内置） |
-| 地址 | 同机 `http://localhost:8080`；跨设备先用 `Get-NetIPAddress` 查本机局域网地址 |
-| 上传材料 | **仅教师可用**（学生 403，符合设计）；演示四步里第 2 步需教师账号 |
-| 提交作业（四步的第 2/3 步） | 需确认异步链路可用；`POST /api/submissions` 与 `/api/tasks/{id}` |
+| 账号 | `teacher_a` / `student_a1` / `student_b1` / `teacher_b`（口令见 `reports/user-trial-record.md`，开发内置，**给账号不给角色说明**） |
+| 起服务 | `scripts/trial_start.py`，实测：起 → 回环 302、局域网 302、登录 200 → `--seconds` 到时优雅关闭、退出码 0、`PRAGMA integrity_check = ok` |
+| 地址 | 同机 `http://127.0.0.1:8080`；对方 `http://<本机局域网地址>:8080`，**必须同网**（热点或同一路由） |
+| 上传材料 | **仅教师可用**（学生 403，符合设计）；界面四步里第 2 步需教师账号 |
+| 提交作业 / 状态流转 | **不进试用任务**：界面上没有提交入口，只有 `POST /api/submissions` 与 `GET /api/tasks/{id}`。这一项由 `scripts/h5_walkthrough.py` 自动覆盖（实测 202 无 `score`、`pending → running → succeeded`），不要求试用者在浏览器里做 |
 | 登录 / 检索 / 跨班隔离 | 已实测通过（见 `scripts/trial_preflight.py`：通过 11、阻断 0、未覆盖 2） |
 | 混合检索 / 提问 | **未覆盖**：缺 `EMBEDDING_*`，`/api/ask` 返回 503 |
+| 检索方式默认值（**已修复**） | 原默认选中 `hybrid`，而本机 `hybrid` / `vector` 均 503、只有 `keyword` 200，试用者照页面点必撞红字。现改为按服务端能力决定：`embedding_ready` 为假时首项是 `关键词`，另两项置灰注明「未配置向量服务」，页面加一行说明，`生成简短回答` 一并禁用。实测页面渲染与关键词命中 1 条 |
+| 索引链路（**已修复**） | `index_worker` 常驻模式原来会在没 Qdrant 时无限停在 `Waiting for Qdrant before claiming index tasks`，一次都不认领；`--once` 跳过等待才跑出「向量失败 → 重建关键词」的降级。现改为 `embedding_ready` 为假时不进等待，直接认领。实测：上传 → 2s `pending` → **6s `ready`** → 学生检索 200 命中本篇 |
 
 > 与 `reports/user-trial-record.md` 的关系：那份是**本批次的执行手册**（账号、地址、
 > 任务表、判定口径），本文件是**课件要求格式的反馈归档**。收集到人之后，
