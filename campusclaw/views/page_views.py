@@ -7,6 +7,7 @@ from flask import Blueprint, redirect, render_template, url_for
 from campusclaw import materials as svc
 from campusclaw import request_context as rc
 from campusclaw.errors import raise_api
+from campusclaw.retrieval_config import RetrievalConfig
 
 bp = Blueprint("pages", __name__, url_prefix="")
 
@@ -46,8 +47,14 @@ def materials_page():
 def knowledge_page():
     user = rc.require_page_auth()
     items = svc.list_materials(rc.get_conn(), int(user["class_id"]))
+    # 检索方式的可选项由服务端能力决定，不让界面给出做不到的默认值：
+    # 向量服务没配时，hybrid / vector 一定 503，而关键词路（FTS5）是可用的。
+    # 默认选中一个必然失败的模式，等于把环境故障记到使用者账上。
+    cfg = RetrievalConfig.from_env()
     return render_template("knowledge.html", user=user, items=items,
-                           csrf_token=rc.ensure_csrf_token())
+                           csrf_token=rc.ensure_csrf_token(),
+                           embedding_ready=cfg.embedding_ready,
+                           chat_ready=cfg.chat_ready)
 
 
 @bp.get("/tutor")

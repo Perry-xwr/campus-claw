@@ -30,9 +30,21 @@
       <div class="card-body"><form id="search-form">
         <label class="field"><span>输入问题或关键词</span><input id="query" class="input" maxlength="500" required placeholder="例如：课程作业什么时候提交？"></label>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center">
-          <label class="field"><span>检索方式</span><select id="mode" class="input"><option value="hybrid">混合检索</option><option value="keyword">关键词</option><option value="vector">向量</option></select></label>
-          <button type="submit" class="btn btn-primary">检索</button><button type="button" id="ask" class="btn btn-outline">生成简短回答</button>
-        </div></form><p id="feedback" class="msg" role="status"></p></div></section>
+          <label class="field"><span>检索方式</span><select id="mode" class="input">
+            {%- if embedding_ready %}
+            <option value="hybrid">混合检索</option><option value="keyword">关键词</option><option value="vector">向量</option>
+            {%- else %}
+            <option value="keyword">关键词</option>
+            <option value="hybrid" disabled>混合检索（未配置向量服务）</option>
+            <option value="vector" disabled>向量（未配置向量服务）</option>
+            {%- endif %}
+          </select></label>
+          <button type="submit" class="btn btn-primary">检索</button><button type="button" id="ask" class="btn btn-outline"{% if not chat_ready or not embedding_ready %} disabled title="未配置模型服务，暂不可用"{% endif %}>生成简短回答</button>
+        </div></form>
+        {%- if not embedding_ready %}
+        <p class="msg" style="margin-top:10px">当前环境未配置向量服务，混合检索与向量检索不可用；<b>关键词检索不受影响</b>，已默认选中。</p>
+        {%- endif %}
+        <p id="feedback" class="msg" role="status"></p></div></section>
     <section class="card"><div class="card-head"><div class="card-title">回答与出处</div></div><div class="card-body">
       <p id="answer" class="msg"></p><div id="results" class="row-list"></div>
     </div></section>

@@ -240,7 +240,7 @@ def run(*, once: bool = False, interval: float = 2.0, use_dotenv: bool = True) -
     try:
         retrieval_db.ensure_schema(conn)
         conn.execute("UPDATE index_jobs SET status='queued' WHERE status='running'")
-        if not once:
+        if not once and config.embedding_ready:
             while True:
                 try:
                     qdrant(config).get_collections()
@@ -248,6 +248,14 @@ def run(*, once: bool = False, interval: float = 2.0, use_dotenv: bool = True) -
                 except Exception:
                     LOG.info("Waiting for Qdrant before claiming index tasks")
                     time.sleep(interval)
+        elif not once:
+            # 等 Qdrant 只在真要写向量时才有意义。没配 embedding 时向量压根建不出来，
+            # 这一等就是个死循环：任务永远不被认领，那条「向量失败 → 重建关键词索引」的
+            # 降级路径也就永远轮不到执行。此时直接开始认领，让 process_one 走既有降级。
+            LOG.info(
+                "Embedding not configured; claiming tasks without waiting for Qdrant "
+                "(vector indexing degrades to keyword-only)"
+            )
         while True:
             worked = process_one(conn, config)
             try:
