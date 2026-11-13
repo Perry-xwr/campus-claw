@@ -61,16 +61,31 @@
   </div></main>
 </div>
 <script>
-const csrf = {{ csrf_token|tojson }};
+let csrf = {{ csrf_token|tojson }};
 const results = document.getElementById('results');
 const feedback = document.getElementById('feedback');
 function showError(e) { feedback.className='msg msg-err'; feedback.textContent=e.message || '服务暂不可用'; }
+async function freshCsrf() {
+  // 令牌会随会话轮换；页面开久了手里那张就是过期的，取一张新的再重试。
+  try { const r = await fetch('/api/csrf', {cache:'no-store'});
+        if (r.ok) { const d = await r.json(); if (d.csrf_token) csrf = d.csrf_token; } } catch (e) {}
+  return csrf;
+}
 async function postJson(path, body, writing) {
-  const headers={'Content-Type':'application/json'};
-  if (writing) headers['X-CSRF-Token']=csrf;
-  const response=await fetch(path,{method:'POST',headers,body:JSON.stringify(body)});
-  const data=await response.json();
-  if (!response.ok) throw new Error(data.error ? data.error.message : ('请求失败 '+response.status));
+  const payload = JSON.stringify(body);
+  const send = async function () {
+    const headers = {'Content-Type':'application/json'};
+    if (writing) headers['X-CSRF-Token'] = csrf;
+    return fetch(path, {method:'POST', headers, body: payload});
+  };
+  let response = await send();
+  let data = await response.json().catch(function () { return {}; });
+  if (response.status === 403 && writing && data.error && data.error.code === 'CSRF_INVALID') {
+    await freshCsrf();
+    response = await send();
+    data = await response.json().catch(function () { return {}; });
+  }
+  if (!response.ok) throw new Error(data.error ? data.error.message : ('请求失败 ' + response.status));
   return data;
 }
 function clear(node) { while(node.firstChild) node.removeChild(node.firstChild); }

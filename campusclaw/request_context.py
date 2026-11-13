@@ -14,7 +14,7 @@ from typing import Any, Mapping
 from flask import Flask, g, jsonify, redirect, request, session, url_for
 
 from campusclaw import audit_db, db as dbmod, metrics, security, sessions
-from campusclaw.errors import MESSAGES, ApiError, error_body
+from campusclaw.errors import MESSAGES, ApiError, audit_rejection, error_body
 
 logger = logging.getLogger(__name__)
 
@@ -194,8 +194,14 @@ def register_page_redirect(app: Flask) -> None:
 
     @app.errorhandler(ApiError)
     def _handle(exc: ApiError):
-        # SEC-07：拒绝也要留痕，先记审计再返回响应。
-        audit_rejected_request(exc.status, exc.code, exc.message)
+        # 走 errors.audit_rejection 而不是直接调 audit_rejected_request：
+        # 它除了留痕，还要把错误码挂到 g 上给写请求链路段用。
+        #
+        # 这里有个容易踩的坑：errors.register_error_handlers 里也注册了一个
+        # ApiError 处理器，而这个函数在后面注册、会把那个覆盖掉。所以「拒绝
+        # 之后要做什么」只有这一处真正生效——改另一个文件等于没改。两边都
+        # 汇到 audit_rejection，至少保证行为只有一份定义。
+        audit_rejection(exc.status, exc.code, exc.message)
         if exc.status == 302 and not _is_api_request():
             session.pop("sid", None)
             return redirect(url_for("auth.login_page"))
@@ -327,6 +333,18 @@ def audit_rejected_request(status: int, code: str, detail: str = "") -> None:
 STATE_CHANGING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
+def _chain_code(status: int) -> str:
+    """写请求链路段该记什么错误码。
+
+    成功记 ``OK``；失败时优先用处理器选定的错误码（``audit_rejection`` 挂在
+    ``g._audit_error_code`` 上），拿不到才退回 ``ERROR``。此前一律写 ``ERROR``，
+    线上于是留下「400 ERROR、原因为空」的记录——状态码有了，为什么被拒没有。
+    """
+    if status < 400:
+        return "OK"
+    return str(getattr(g, "_audit_error_code", "") or "ERROR")
+
+
 def audit_state_changing_request(status: int) -> None:
     """给已认证的写请求落一条 ``api.request`` 链路段（第 10 课追踪）。
 
@@ -350,7 +368,7 @@ def audit_state_changing_request(status: int) -> None:
         audit_db.record_event(
             get_conn(),
             status=int(status),
-            code="OK" if status < 400 else "ERROR",
+            code=_chain_code(int(status)),
             action="api.request",
             actor=actor,
             actor_id=actor_id,

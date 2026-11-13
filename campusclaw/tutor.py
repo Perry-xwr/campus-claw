@@ -49,6 +49,45 @@ DIRECT_ANSWER_DIRECTIVE = (
     "不得编造出处或凭空估算。"
 )
 
+#: 无模型时的引导步骤。原先只有一套数学措辞（「已知条件」「公式或定理」），
+#: B 班英语写作课的学生问「议论文开头段怎么写」也会收到「把公式写出来」。
+GUIDE_STEPS: dict[str, tuple[str, ...]] = {
+    "math": (
+        "第一步，把题目复述一遍：「{question}」——已知条件是什么，要求的是什么？",
+        "第二步，想想课本里哪个知识点管这类问题，把对应的公式或定理写出来。",
+        "第三步，试着迈出求解的第一步；卡住的话，告诉我你代到哪一步，我接着给提示。",
+    ),
+    "general": (
+        "第一步，先把这个问题复述一遍：「{question}」——你最终想得到什么？",
+        "第二步，想想本班讲义里哪一部分讲的正是这类问题，把那一节找出来对照（见引用 [1]）。",
+        "第三步，照着那一节的写法先自己动笔写一段；卡住就告诉我卡在哪一句，我接着给提示。",
+    ),
+}
+
+#: 判断班级人设属于哪一类，决定用哪套引导措辞。非数学词优先命中。
+NON_MATH_HINTS = (
+    "英语", "写作", "语文", "历史", "地理", "政治", "论据", "段落", "议论文", "修辞",
+)
+MATH_HINTS = ("数学", "物理", "化学", "方程", "公式", "定理", "算术", "几何", "解题")
+
+
+def guide_domain(prompt_body: str, skill: dict[str, Any] | None) -> str:
+    """判断引导该用哪套措辞。
+
+    先看教师写的班级提示词：写了「英语 / 写作 / 论据」这类就按通用措辞，
+    不能把数学的「已知条件、公式定理」推给写作课学生。提示词没表态时，
+    退回技能自身标明的学科。
+    """
+    text = prompt_body or ""
+    if any(word in text for word in NON_MATH_HINTS):
+        return "general"
+    subject = str((skill or {}).get("subject") or "")
+    if any(word in subject for word in ("数学", "物理", "化学")):
+        return "math"
+    if any(word in f"{text}{subject}" for word in MATH_HINTS):
+        return "math"
+    return "general"
+
 IDENTITY_TEMPLATE = (
     "当前用户：{username}（{role_label}），班级：{class_name}。"
     "先确认身份与班级，再开始解题。"
@@ -249,16 +288,30 @@ def local_stream(
         )
     else:
         yield "我在本班资料里没有找到与这道题直接相关的内容，下面只谈一般方法，不标出处。"
+    domain = guide_domain(prompt_body, skill)
     if skill:
         yield f"当前启用了「{skill['name']}」技能，我们只走思路，不直接给最终答案。"
-        yield f"第一步，把题目复述一遍：「{question}」——已知条件是什么，要求的是什么？"
-        yield "第二步，想想课本里哪个知识点管这类问题，把对应的公式或定理写出来。"
-        yield "第三步，试着迈出求解的第一步；卡住的话，告诉我你代到哪一步，我接着给提示。"
+        for line in GUIDE_STEPS[domain]:
+            yield line.format(question=question)
     else:
         yield f"关于「{question}」："
-        yield "先审题，把已知条件和所求结论分别列出来。"
-        yield "再选择对应知识点逐步求解，每一步都写清依据。"
-        yield "需要更具体的帮助，可以把题目完整发给我。"
+        if domain == "math":
+            yield "先审题，把已知条件和所求结论分别列出来。"
+            yield "再选择对应知识点逐步求解，每一步都写清依据。"
+        else:
+            yield "先把问题说清楚：你手上已有什么、想得到什么。"
+            yield "再到本班讲义里找到讲这类问题的那一节，照着它的写法先自己动笔。"
+        yield "需要更具体的帮助，可以把问题完整发给我。"
+    # 教师改过班级提示词、而本轮没有生成模型时，引导步骤只能是通用模板。
+    # 不说清楚的话，老师看见「保存成功」、学生拿到另一套措辞，双方都查不出断在哪。
+    if (prompt_body or "").strip() != DEFAULT_PROMPT.strip():
+        cls = user.get("class_name") or ""
+        whose = f"（{cls} 班那份）" if cls else ""
+        yield (
+            "说明：当前环境未配置生成模型，上面几步是通用引导模板；"
+            f"教师写的班级提示词{whose}要接入模型后才按它作答——"
+            "提示词已保存成功，不是配置丢失。"
+        )
 
 
 def stub_stream(

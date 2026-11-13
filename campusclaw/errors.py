@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, g, jsonify
 from werkzeug.exceptions import HTTPException
 
 
@@ -90,8 +90,16 @@ def audit_rejection(status: int, code: str, message: str) -> None:
     页面视图（如登录表单）自己渲染友好错误页时，也要调它一次——否则
     这些被拒绝的请求会从审计里消失，而登录失败恰恰是最需要留痕的一类。
 
+    顺带把错误码挂在 ``g`` 上：写请求链路段（``api.request``）是 after_request
+    统一落的，那里只能拿到状态码，拿不到处理器选定的错误码。此前它就一律写
+    ``ERROR``，于是线上出现「400 ERROR、原因为空」这种查不动的记录。
+
     延迟导入避免 errors ↔ request_context 的循环依赖。
     """
+    try:
+        g._audit_error_code = code
+    except Exception:
+        pass
     try:
         from campusclaw.request_context import audit_rejected_request
 

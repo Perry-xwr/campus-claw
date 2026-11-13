@@ -102,9 +102,16 @@ def reindex_api(material_id: str):
     conn = rc.get_conn()
     if materials.get_active_material(conn, material_id_int, int(user["class_id"])) is None:
         raise ApiError(404, "MATERIAL_NOT_FOUND", MESSAGES["MATERIAL_NOT_FOUND"])
-    body = _body()
+    # 重建是「把这份材料重跑一遍」，参数是可选的：没有 body 就用默认策略。
+    # 原来走 _body()，空 body 直接 400「需要 JSON 对象」——对界面用户是句
+    # 看不懂的话，而且他其实什么都没做错。
+    raw = request.get_json(silent=True)
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ApiError(400, "INVALID_STRATEGY", "重建参数需为 JSON 对象")
     try:
-        strategy = validate_strategy(body)
+        strategy = validate_strategy(raw)
     except StrategyError as exc:
         raise ApiError(400, "INVALID_STRATEGY", str(exc)) from exc
     job_id = retrieval_db.enqueue(conn, material_id_int, strategy)

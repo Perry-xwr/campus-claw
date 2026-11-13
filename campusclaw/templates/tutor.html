@@ -90,6 +90,7 @@
           <div class="empty" id="chat-empty">
             <span class="empty-ic">🧭</span>
             从左侧选择一个会话，或点「新会话」开始提问。<br>
+            <small>不知道问什么就从本班讲义里挑一段，比如「这份讲义第三章讲了什么」。</small><br>
             <small>默认「引导」只给思路；需要结论时把「回答方式」切到「直接回答」。</small>
           </div>
         </div>
@@ -167,7 +168,8 @@
     document.getElementById("stat-convs").textContent = state.conversations.length;
     if (!state.conversations.length) {
       listEl.innerHTML = '<div class="empty" style="padding:20px 8px;">' +
-        '<span class="empty-ic">💬</span>还没有会话，点「新会话」开始。</div>';
+        '<span class="empty-ic">💬</span>还没有会话，点「新会话」开始。<br>' +
+        '<small>可以问你班讲义里的内容</small></div>';
       return;
     }
     listEl.innerHTML = "";

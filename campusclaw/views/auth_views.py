@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 
 from campusclaw import request_context as rc
 from campusclaw import security, sessions
@@ -116,3 +116,16 @@ def logout():
     session.clear()
     rc.ensure_csrf_token()
     return redirect(url_for("auth.login_page"), code=302)
+
+
+@bp.get("/api/csrf")
+def csrf_token_api():
+    """取当前会话的 CSRF 令牌，供前端在令牌过期时自愈重试。
+
+    GET 不校验令牌（它本身就是发令牌的），但要先登录——未登录的请求不该
+    拿到任何会话内标识。页面上那个令牌是渲染时写死的，页面开久了两处会
+    对不上：实测里「第一次上传 403 CSRF_INVALID、刷新后同样的操作 201」
+    就是这种时间差造成的，用户只会觉得「点了没反应」。
+    """
+    rc.require_api_auth()
+    return jsonify({"csrf_token": rc.ensure_csrf_token()}), 200

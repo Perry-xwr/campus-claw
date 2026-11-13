@@ -123,10 +123,24 @@
           <span class="badge badge-neutral">{{ items|length }} 份</span>
         </div>
         <div class="card-body">
+          <p class="msg" style="margin:0 0 12px">你只能看到本班资料。其他班的材料对你不可见、也不可搜——检索同样只在本班范围内进行。</p>
           {% if not items %}
           <div class="empty">
             <span class="empty-ic">📭</span>
-            暂无材料。{{ '上传第一份讲义试试。' if user.role == 'teacher' else '等待本班教师上传。' }}
+            <b>本班还没有材料，所以现在什么也搜不到。</b>
+            {% if user.role == 'teacher' %}
+            <div class="msg" style="margin-top:8px">
+              下一步：用下面的上传框放一份 <code>.md</code> 或 <code>.txt</code> 讲义。
+              索引通常几秒内完成，材料右侧会从「排队中」变成「已就绪」；
+              变成「已就绪」之后，学生在「知识检索」里才搜得到。
+            </div>
+            {% else %}
+            <div class="msg" style="margin-top:8px">
+              这不是你的问题：材料由本班教师上传。你可以先到
+              <a href="{{ url_for('pages.knowledge_page') }}">知识检索</a> 看看有没有旧材料，
+              或者去 <a href="{{ url_for('qa.qa_list_page') }}">答疑广场</a> 直接问老师。
+            </div>
+            {% endif %}
           </div>
           {% endif %}
           <div id="material-list" class="row-list">
@@ -171,9 +185,29 @@
 </div>
 
 <script>
-  const csrf = '{{ csrf_token }}';
+  let csrf = '{{ csrf_token }}';
   function headers(extra) {
     return Object.assign({'X-CSRF-Token': csrf}, extra || {});
+  }
+  async function freshCsrf() {
+    // 页面开久了手里那张令牌会过期，取一张新的再重试，别让人自己刷新。
+    try {
+      const r = await fetch('/api/csrf', {cache: 'no-store'});
+      if (r.ok) { const d = await r.json(); if (d.csrf_token) csrf = d.csrf_token; }
+    } catch (e) { /* 取不到就按原样失败，下面会给出说明 */ }
+    return csrf;
+  }
+  async function sendUpload(body, retried) {
+    const r = await fetch('/api/materials/upload', {method: 'POST', headers: headers(), body: body});
+    if (r.status === 403 && !retried) {
+      const peek = await r.clone().json().catch(function () { return {}; });
+      if (peek.error && peek.error.code === 'CSRF_INVALID') {
+        await freshCsrf();
+        return sendUpload(body, true);
+      }
+    }
+    const parsed = await r.json().catch(function () { return {}; });
+    return {status: r.status, body: parsed};
   }
   document.querySelectorAll('#material-list .list-row').forEach(function (row) {
     const id = row.getAttribute('data-id');
@@ -242,20 +276,18 @@
       msg.className = 'msg';
       msg.textContent = '上传中…';
       uploader.classList.add('busy');
-      fetch('/api/materials/upload', {method: 'POST', headers: {'X-CSRF-Token': csrf}, body: data})
-        .then(function (r) { return r.json().then(function (b) { return {status: r.status, body: b}; }); })
+      sendUpload(data)
         .then(function (res) {
           uploader.classList.remove('busy');
-          if (res.status === 201) { window.location.reload(); }
-          else {
-            msg.className = 'msg msg-err';
-            msg.textContent = '上传失败 ' + res.status + '：' + (res.body.error ? res.body.error.code : '未知');
-          }
+          if (res.status === 201) { window.location.reload(); return; }
+          const err = (res.body && res.body.error) || {};
+          msg.className = 'msg msg-err';
+          msg.textContent = '上传失败：' + (err.message || ('服务返回 ' + res.status));
         })
         .catch(function () {
           uploader.classList.remove('busy');
           msg.className = 'msg msg-err';
-          msg.textContent = '上传失败：网络或服务异常';
+          msg.textContent = '上传失败：网络或服务异常，请确认服务还在运行、页面没有被断开';
         });
     });
   }
