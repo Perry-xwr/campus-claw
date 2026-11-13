@@ -35,14 +35,14 @@
             <option value="hybrid">混合检索</option><option value="keyword">关键词</option><option value="vector">向量</option>
             {%- else %}
             <option value="keyword">关键词</option>
-            <option value="hybrid" disabled>混合检索（未配置向量服务）</option>
-            <option value="vector" disabled>向量（未配置向量服务）</option>
+            <option value="hybrid" disabled>混合检索（需部署向量服务）</option>
+            <option value="vector" disabled>向量检索（需部署向量服务）</option>
             {%- endif %}
           </select></label>
-          <button type="submit" class="btn btn-primary">检索</button><button type="button" id="ask" class="btn btn-outline"{% if not chat_ready or not embedding_ready %} disabled title="未配置模型服务，暂不可用"{% endif %}>生成简短回答</button>
+          <button type="submit" class="btn btn-primary">检索</button><button type="button" id="ask" class="btn btn-outline"{% if not chat_ready or not embedding_ready %} disabled title="当前环境只提供检索，不能生成简短回答"{% endif %}>生成简短回答</button>
         </div></form>
         {%- if not embedding_ready %}
-        <p class="msg" style="margin-top:10px">当前环境未配置向量服务，混合检索与向量检索不可用；<b>关键词检索不受影响</b>，已默认选中。</p>
+        <p class="msg" style="margin-top:10px">当前环境未部署向量服务，混合检索与向量检索不可用；<b>关键词检索不受影响</b>，已默认选中。要启用这两种方式，需在本机启动 Qdrant 并配置 <code>EMBEDDING_BASE_URL</code> / <code>EMBEDDING_MODEL</code> / <code>EMBEDDING_API_KEY</code>，步骤见 README 的「向量检索」一节。</p>
         {%- endif %}
         <p id="feedback" class="msg" role="status"></p></div></section>
     <section class="card"><div class="card-head"><div class="card-title">回答与出处</div></div><div class="card-body">

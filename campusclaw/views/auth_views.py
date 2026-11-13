@@ -7,7 +7,7 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 from campusclaw import request_context as rc
 from campusclaw import security, sessions
 from campusclaw.config import DEFAULT_SEED_PASSWORDS, SEED_ACCOUNTS
-from campusclaw.errors import MESSAGES, ApiError
+from campusclaw.errors import MESSAGES, ApiError, audit_rejection
 
 bp = Blueprint("auth", __name__)
 
@@ -37,6 +37,30 @@ def login_page():
     return render_template("login.html", csrf_token=token, accounts=DEMO_ACCOUNTS)
 
 
+def _render_login_failure(
+    status: int, code: str, message: str, username: str = ""
+) -> tuple[str, int]:
+    """登录表单失败：回到登录页说人话，不要把 JSON 甩到浏览器里。
+
+    ``/api/auth/login`` 是给程序调用的，那里继续走 ``ApiError`` 的 JSON 分支；
+    页面表单是给人用的，两类请求不该共用一个出口。分流之前，输错一次密码
+    就会在屏幕上看到 ``{"error":{"code":"INVALID_CREDENTIALS"...}}``。
+
+    错误码变化（比如 CSRF 过期）也要回登录页——这正是普通人最常撞的一种。
+    """
+    audit_rejection(status, code, message)
+    return (
+        render_template(
+            "login.html",
+            csrf_token=rc.ensure_csrf_token(),
+            accounts=DEMO_ACCOUNTS,
+            error=message,
+            username=username,
+        ),
+        status,
+    )
+
+
 @bp.post("/login")
 def login():
     # 顺序：CSRF → 撤销旧会话 → 输入校验 → 口令校验 → 建立新会话。
@@ -44,7 +68,12 @@ def login():
     if not security.tokens_equal(
         str(session.get(rc.CSRF_FIELD) or ""), str(rc.submitted_csrf_token() or "")
     ):
-        raise ApiError(403, "CSRF_INVALID", MESSAGES["CSRF_INVALID"])
+        return _render_login_failure(
+            403,
+            "CSRF_INVALID",
+            "页面已过期，请重新登录",
+            (request.form.get("username") or "").strip(),
+        )
 
     conn = rc.get_conn()
     rc.revoke_current_session(conn)
@@ -52,7 +81,9 @@ def login():
     username = (request.form.get("username") or "").strip()
     password = request.form.get("password") or ""
     if username == "" or password == "":
-        raise ApiError(400, "INVALID_INPUT", MESSAGES["INVALID_INPUT"])
+        return _render_login_failure(
+            400, "INVALID_INPUT", "请输入账号和密码", username
+        )
 
     user = rc.get_conn().execute(
         "SELECT id, username, password_hash, role, class_id FROM users WHERE username = ?",
@@ -61,7 +92,9 @@ def login():
 
     if user is None or not security.verify_password(password, user["password_hash"]):
         # 不区分账号是否存在，统一 401 提示。
-        raise ApiError(401, "INVALID_CREDENTIALS", "账号或密码错误")
+        return _render_login_failure(
+            401, "INVALID_CREDENTIALS", "账号或密码错误", username
+        )
 
     from campusclaw.timeutil import now_utc
 

@@ -235,3 +235,24 @@ if not once:
 
 > 另：`trial_start.py` 只起 web，不带 worker。试用时仍需另起一个
 > `python -m campusclaw.index_worker`（现在它会正常认领，不会再死等 Qdrant）。
+
+### 2026-11-13 22:30 批次启动（服务已起，等真人）
+
+正式开叫试用者之前的最后一轮出发检查，留档备查：
+
+| 项 | 值 |
+| --- | --- |
+| 代码版本 | `main` @ `805d82d`（含 DEF-11 修复，本地 ahead 6 未推） |
+| Web | `scripts/trial_start.py --seconds 3600`，监听 `0.0.0.0:8080` |
+| Worker | `python -m campusclaw.index_worker`（常驻，另开一终端） |
+| 可达性 | 回环 `302`、局域网 `http://172.20.10.2:8080` `302`、`/login` `200` |
+| 预检 | `trial_preflight.py`：**通过 11 ｜ 阻断 0 ｜ 未覆盖 2** |
+| 未覆盖 | 混合检索、提问（`503`，缺 `EMBEDDING_*` / `CHAT_*`），对应任务 6/7 标「本轮未覆盖」 |
+| 结论 | 可以开始试用 |
+
+两个运行时注意：
+
+- `--seconds 3600` 到点会走 `close()` 自动关服务。人还在做就重开一次，别让人做到一半打不开。
+- worker 窗口会持续输出 `GET http://127.0.0.1:6333 ... 502 Bad Gateway`。这是**没部署 Qdrant 的正常噪音**，
+  不是报错：日志首行已打出 `Embedding not configured; claiming tasks without waiting for Qdrant`，
+  任务照常认领、照常降级建关键词索引（预检「上传后关键词检索命中」即为证）。

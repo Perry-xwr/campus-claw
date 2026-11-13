@@ -1,11 +1,11 @@
 # 审计日志回查（SEC-07）
 
-- 生成时间：2026-11-13 22:14:30
+- 生成时间：2026-11-13 23:21:29
 - 数据库：`data/app.db`
 - 时间窗：不限（全部历史，原文只列最近 5 条）
 - 技能调用记录：8 条，七列齐备 8 条
-- 最近一条调用：`2026-11-12T16:09:02.936108+00:00`（距今 22 小时）
-- 拒绝尝试记录：45 条
+- 最近一条调用：`2026-11-12T16:09:02.936108+00:00`（距今 23 小时）
+- 拒绝尝试记录：50 条
 - 关联键断言：通过（有用户名的记录均带 actor_id）
 - 表结构断言：通过（七列齐备）
 
@@ -103,124 +103,124 @@
 ```json
 [
   {
-    "id": 45,
-    "ts": "2026-11-13T14:13:30.660728+00:00",
-    "request_id": "req-02bae143b1d2",
-    "actor": "teacher_a",
-    "actor_id": 1,
-    "class_id": 1,
+    "id": 105,
+    "ts": "2026-11-13T15:10:32.072197+00:00",
+    "request_id": "req-f67f38dada16",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
     "action": "api.request",
-    "object_id": "DELETE /api/materials/4",
-    "method": "DELETE",
-    "path": "/api/materials/4",
-    "status": 204,
+    "object_id": "PUT /api/prompt",
+    "method": "PUT",
+    "path": "/api/prompt",
+    "status": 200,
     "code": "OK",
-    "duration_ms": 119
+    "duration_ms": 12
   },
   {
-    "id": 44,
-    "ts": "2026-11-13T14:12:33.043474+00:00",
-    "request_id": "req-d71df469e8c9",
-    "actor": "student_a1",
-    "actor_id": 2,
-    "class_id": 1,
+    "id": 104,
+    "ts": "2026-11-13T15:10:00.248531+00:00",
+    "request_id": "req-2ff8b26cf8b3",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
     "action": "api.request",
     "object_id": "POST /api/search",
     "method": "POST",
     "path": "/api/search",
     "status": 200,
     "code": "OK",
-    "duration_ms": 4
+    "duration_ms": 3
   },
   {
-    "id": 43,
-    "ts": "2026-11-13T14:12:26.816472+00:00",
-    "request_id": "req-c99d0a5f8591",
-    "actor": "teacher_a",
-    "actor_id": 1,
-    "class_id": 1,
+    "id": 103,
+    "ts": "2026-11-13T15:09:59.890963+00:00",
+    "request_id": "req-4ece242e135e",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
+    "action": "api.request",
+    "object_id": "POST /api/search",
+    "method": "POST",
+    "path": "/api/search",
+    "status": 200,
+    "code": "OK",
+    "duration_ms": 3
+  },
+  {
+    "id": 102,
+    "ts": "2026-11-13T15:09:53.803739+00:00",
+    "request_id": "req-15a886e45de4",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
+    "action": "api.request",
+    "object_id": "POST /api/materials/8/reindex",
+    "method": "POST",
+    "path": "/api/materials/8/reindex",
+    "status": 202,
+    "code": "OK",
+    "duration_ms": 13
+  },
+  {
+    "id": 101,
+    "ts": "2026-11-13T15:09:43.009491+00:00",
+    "request_id": "req-61a5f2f13e70",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
     "action": "api.request",
     "object_id": "POST /api/materials/upload",
     "method": "POST",
     "path": "/api/materials/upload",
     "status": 201,
     "code": "OK",
-    "duration_ms": 13
+    "duration_ms": 14
   },
   {
-    "id": 42,
-    "ts": "2026-11-13T14:12:09.438524+00:00",
-    "request_id": "req-ecdcc2ecdafd",
-    "actor": "student_a1",
-    "actor_id": 2,
-    "class_id": 1,
+    "id": 100,
+    "ts": "2026-11-13T15:09:42.759986+00:00",
+    "request_id": "req-f8dcdb640a4a",
+    "actor": "teacher_b",
+    "actor_id": 4,
+    "class_id": 2,
     "action": "api.request",
     "object_id": "POST /login",
     "method": "POST",
     "path": "/login",
     "status": 302,
     "code": "OK",
-    "duration_ms": 212
+    "duration_ms": 206
   },
   {
-    "id": 41,
-    "ts": "2026-11-13T14:12:00.048064+00:00",
-    "request_id": "req-8c5ac9268c2e",
-    "actor": "",
-    "actor_id": null,
-    "class_id": null,
-    "action": "api.reject",
-    "object_id": "POST /login",
-    "method": "POST",
-    "path": "/login",
-    "status": 403,
-    "code": "CSRF_INVALID",
-    "duration_ms": 2
-  },
-  {
-    "id": 40,
-    "ts": "2026-11-13T14:09:28.129379+00:00",
-    "request_id": "req-cd0a6ee7edbd",
+    "id": 99,
+    "ts": "2026-11-13T15:09:28.132156+00:00",
+    "request_id": "req-af2f1cd6e851",
     "actor": "teacher_a",
     "actor_id": 1,
     "class_id": 1,
     "action": "api.request",
-    "object_id": "DELETE /api/materials/3",
-    "method": "DELETE",
-    "path": "/api/materials/3",
-    "status": 204,
+    "object_id": "POST /api/qa/faqs",
+    "method": "POST",
+    "path": "/api/qa/faqs",
+    "status": 201,
     "code": "OK",
-    "duration_ms": 98
+    "duration_ms": 19
   },
   {
-    "id": 39,
-    "ts": "2026-11-13T14:08:57.290093+00:00",
-    "request_id": "req-72051828bbf3",
-    "actor": "student_a1",
-    "actor_id": 2,
+    "id": 98,
+    "ts": "2026-11-13T15:09:19.362159+00:00",
+    "request_id": "req-9954eeb643d2",
+    "actor": "teacher_a",
+    "actor_id": 1,
     "class_id": 1,
     "action": "api.request",
-    "object_id": "POST /api/search",
+    "object_id": "POST /api/qa/questions/2/accept",
     "method": "POST",
-    "path": "/api/search",
-    "status": 503,
-    "code": "ERROR",
-    "duration_ms": 5
-  },
-  {
-    "id": 38,
-    "ts": "2026-11-13T14:08:57.263722+00:00",
-    "request_id": "req-d1919cab9c53",
-    "actor": "student_a1",
-    "actor_id": 2,
-    "class_id": 1,
-    "action": "api.request",
-    "object_id": "POST /api/search",
-    "method": "POST",
-    "path": "/api/search",
-    "status": 503,
-    "code": "ERROR",
-    "duration_ms": 4
+    "path": "/api/qa/questions/2/accept",
+    "status": 200,
+    "code": "OK",
+    "duration_ms": 13
   }
 ]
 ```

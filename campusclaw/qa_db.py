@@ -690,6 +690,25 @@ def republish_faq(conn: sqlite3.Connection, faq_id: int, class_id: int) -> bool 
     return True
 
 
+def _faq_question_text(title: str, body: str) -> str:
+    """拼 FAQ 的问题正文，并去掉标题与正文的重复。
+
+    提问页的标题与正文是两个输入框，使用者常把同一句话在两处各写一遍
+    （实测数据里就有一条：正文开头与标题逐字相同）。原样拼起来之后，
+    发布的 FAQ 会变成「标题一遍、正文又一遍」，读起来像系统出了错——
+    而这只是把两个字段直接相加的结果。
+    """
+    title = (title or "").strip()
+    body = (body or "").strip()
+    if not body:
+        return title
+    if title and body.startswith(title):
+        body = body[len(title):].lstrip(" \t\r\n。.，,：:；;、")
+    if not body or body == title:
+        return title
+    return f"{title}\n\n{body}"
+
+
 def faq_draft(
     conn: sqlite3.Connection, question_id: int, class_id: int
 ) -> dict[str, Any] | None:
@@ -709,7 +728,7 @@ def faq_draft(
         "question_id": question_id,
         "reply_id": int(reply["id"]),
         "title": question["title"],
-        "question_text": f"{question['title']}\n\n{question['body']}",
+        "question_text": _faq_question_text(question["title"], question["body"]),
         "answer_text": reply["body"],
         "existing_faq": faq_for_question(conn, question_id, class_id),
     }

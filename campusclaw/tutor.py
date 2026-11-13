@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Iterator
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -179,6 +180,33 @@ def _chat_model(config: RetrievalConfig) -> ChatOpenAI:
     )
 
 
+#: 无模型时「照录原文」的长度上限。整段贴出来既读不下去，也盖住了后面的引用。
+LOCAL_EXCERPT_LIMIT = 320
+
+
+def plain_excerpt(text: str, limit: int = LOCAL_EXCERPT_LIMIT) -> tuple[str, bool]:
+    """把 markdown 片段压成一段能读的原文摘录，返回 ``(文本, 是否截断)``。
+
+    无模型配置时「直接回答」只能照录检索片段，而片段是原始 markdown：
+    标题号、加粗星号、列表符号会一个字不改地出现在答案正文里。既然生成不了
+    摘要，至少不该让人去读符号；而且要让人一眼看出这是**原文照录**，
+    不是系统给出的答案——这两件事混在一起时，可靠的那部分也会被怀疑。
+    """
+    lines: list[str] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        line = re.sub(r"^#{1,6}\s*", "", line)        # 标题号
+        line = re.sub(r"^[>\-*+]\s+", "", line)        # 引用与列表符号
+        line = re.sub(r"\*\*|__|`", "", line)          # 加粗与行内代码
+        lines.append(line)
+    merged = re.sub(r"\s{2,}", " ", " ".join(lines)).strip()
+    if len(merged) > limit:
+        return merged[:limit].rstrip("，。；、 ") + "……", True
+    return merged, False
+
+
 def local_stream(
     prompt_body: str,
     skill: dict[str, Any] | None,
@@ -193,10 +221,23 @@ def local_stream(
         yield f"已调用工具 {item['ref']}，返回：{item.get('text', '')}"
     if answer_mode == "direct":
         # 直接回答模式：把命中的片段原文作为答案依据，不做苏格拉底式引导。
+        # 没配模型时只能照录，那就把「照录」这件事说清楚：先说明来源，
+        # 再把 markdown 符号洗掉，超长就截断。原文 ≠ 答案，不该混着给。
         if hits:
             first = hits[0]
-            body = first.get("_chunk_text") or first.get("excerpt") or ""
-            yield f"依据本班资料《{first['title']}》第 {first['chunk_index']} 节[1]：{body}"
+            body, clipped = plain_excerpt(
+                first.get("_chunk_text") or first.get("excerpt") or ""
+            )
+            yield (
+                f"我从本班资料《{first['title']}》里找到一段相关内容[1]。"
+                f"当前未配置生成模型，下面是原文照录，不是改写后的答案：\n\n"
+            )
+            yield body
+            if clipped:
+                yield (
+                    "\n\n（原文较长，这里只截取了开头一段；"
+                    "完整内容点引用 [1] 查看。）"
+                )
         else:
             yield "本班资料中没有找到与该问题相关的内容，无法给出确定答案（未编造出处）。"
         return
@@ -204,7 +245,7 @@ def local_stream(
         first = hits[0]
         yield (
             f"我先查了你班（{user.get('class_name', '')}）的资料，"
-            f"参考《{first['title']}》第 {first['chunk_index']} 节[1]。"
+            f"参考《{first['title']}》的第 {first['chunk_index']} 个片段[1]。"
         )
     else:
         yield "我在本班资料里没有找到与这道题直接相关的内容，下面只谈一般方法，不标出处。"

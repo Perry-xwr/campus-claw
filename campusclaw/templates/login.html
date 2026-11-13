@@ -17,11 +17,16 @@
       身份、角色与班级边界全部由服务端判定，不信任客户端提交的任何身份字段。
     </p>
 
+    {% if error %}
+    <div class="login-error" role="alert">{{ error }}</div>
+    {% endif %}
+
     <form class="login-form" method="post" action="{{ url_for('auth.login') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="field">
         <span>账号</span>
         <input class="input" id="username" name="username" type="text"
+               value="{{ username or '' }}"
                autocomplete="username" autofocus required>
       </div>
       <div class="field">

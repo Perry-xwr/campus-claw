@@ -134,3 +134,38 @@ def index_status(conn: sqlite3.Connection, material_id: int) -> dict:
     if row is None:
         return {"status": "pending", "active_generation": 0, "last_error": None}
     return dict(row)
+
+
+#: 索引状态超过这么久没变化，就认为没有服务在消费队列。
+#: 取 120 秒：本机实测正常降级重建在 10 秒内完成（见 reports/user-trial-record.md），
+#: 两分钟纹丝不动，基本可以断定索引服务没起来，而不是「还在切分」。
+STALL_SECONDS = 120
+
+
+def index_status_map(conn: sqlite3.Connection, class_id: int) -> dict[int, dict | None]:
+    """本班每份 active 材料的索引状态；``None`` 表示**从未入队**。
+
+    与 ``index_status`` 的区别：那个把「没有记录」当成 ``pending``，
+    于是一份根本没进队列的材料和一份正在排队等 worker 的材料长得完全一样。
+    这两件事的处置完全不同——前者是上传链路断了，后者只是等一会儿——
+    界面上也不该显示成同一个样子。
+    """
+    rows = conn.execute(
+        """SELECT m.id AS material_id, mi.status, mi.last_error, mi.updated_at
+             FROM materials m
+             LEFT JOIN material_index mi ON mi.material_id = m.id
+            WHERE m.class_id = ? AND m.status = 'active'""",
+        (class_id,),
+    ).fetchall()
+    return {
+        int(row["material_id"]): (
+            None
+            if row["status"] is None
+            else {
+                "status": row["status"],
+                "last_error": row["last_error"],
+                "updated_at": row["updated_at"],
+            }
+        )
+        for row in rows
+    }

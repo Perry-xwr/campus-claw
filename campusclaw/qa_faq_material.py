@@ -40,12 +40,18 @@ def render(faqs: list[dict[str, Any]]) -> str:
         lines.append(EMPTY_NOTICE)
         return "\n".join(lines) + "\n"
     for index, faq in enumerate(faqs, 1):
-        question = (faq.get("question_text") or "").strip().splitlines()
-        title = question[0] if question else f"FAQ {index}"
+        raw = (faq.get("question_text") or "").strip()
+        # 第一行当标题，剩下的才是正文。此前这里在 `## 标题` 之后又把整段
+        # question_text（含标题）贴了一遍，于是同一句问话在正文里出现两次，
+        # 切片检索召回的也就是这段重复文本——读起来像系统故障，其实是拼装写错了。
+        first_line, _, rest = raw.partition("\n")
+        title = first_line.strip() or f"FAQ {index}"
+        body = rest.strip()
         lines.append(f"## {title}")
         lines.append("")
-        lines.append((faq.get("question_text") or "").strip())
-        lines.append("")
+        if body:
+            lines.append(body)
+            lines.append("")
         lines.append("答：" + (faq.get("answer_text") or "").strip())
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"

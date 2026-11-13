@@ -6,10 +6,60 @@ from flask import Blueprint, redirect, render_template, url_for
 
 from campusclaw import materials as svc
 from campusclaw import request_context as rc
+from campusclaw import retrieval_db, timeutil
 from campusclaw.errors import raise_api
 from campusclaw.retrieval_config import RetrievalConfig
 
 bp = Blueprint("pages", __name__, url_prefix="")
+
+#: 索引状态 → 界面文案。``None``（从未入队）单独一档：那是上传链路断了，
+#: 不是「还在排队」，两者的处置完全不同，不能显示成同一个样子。
+_INDEX_LABELS = {
+    "ready": ("已建索引", "badge-ok"),
+    "pending": ("索引排队中", "badge-neutral"),
+    "running": ("正在建索引", "badge-neutral"),
+    "failed": ("索引失败", "badge-danger"),
+    None: ("未进入索引队列", "badge-warn"),
+}
+
+
+def index_panel(conn, items: list[dict], class_id: int) -> dict:
+    """给材料列表补索引状态，并判断索引服务是不是根本没在跑。
+
+    为什么要在列表页做这件事：「上传成功」和「检索得到」中间隔着索引 worker，
+    而这一环此前在界面上完全不可见。worker 没起时材料永远停在 pending，
+    老师看到的现象只是「搜不到」，于是去怀疑编码、切分策略、自己的操作——
+    实测中有人为此折腾了十分钟才发现后台服务没开。状态必须可见，
+    卡住时必须把最可能的病因直接说出来，而不是让人自己猜。
+    """
+    states = retrieval_db.index_status_map(conn, class_id)
+    now = timeutil.now_utc()
+    worst_wait = 0
+    unfinished = 0
+    for item in items:
+        state = states.get(int(item["id"]))
+        status = None if state is None else state["status"]
+        item["index_status"] = status
+        item["index_error"] = None if state is None else state["last_error"]
+        label, tone = _INDEX_LABELS.get(status, (str(status), "badge-neutral"))
+        item["index_label"] = label
+        item["index_tone"] = tone
+        if status not in ("pending", "running"):
+            continue
+        unfinished += 1
+        updated = (state or {}).get("updated_at")
+        if not updated:
+            continue
+        try:
+            waited = int((now - timeutil.parse_iso_loose(updated)).total_seconds())
+        except (TypeError, ValueError):
+            continue
+        worst_wait = max(worst_wait, waited)
+    return {
+        "index_stalled": worst_wait > retrieval_db.STALL_SECONDS,
+        "index_wait_minutes": max(1, worst_wait // 60) if worst_wait else 0,
+        "index_unfinished": unfinished,
+    }
 
 
 @bp.get("/")
@@ -40,6 +90,7 @@ def materials_page():
         user=user,
         items=items,
         csrf_token=token,
+        **index_panel(conn, items, int(user["class_id"])),
     )
 
 

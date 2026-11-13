@@ -53,6 +53,26 @@
     </div>
   </section>
 
+  {% if index_stalled %}
+  <div class="shell" style="padding-bottom:0;">
+    <div class="index-alert" role="alert">
+      <span class="index-alert-ic">⚠️</span>
+      <div>
+        <div class="index-alert-title">
+          有 {{ index_unfinished }} 份材料的索引已 {{ index_wait_minutes }} 分钟没有进展，索引服务可能没有运行
+        </div>
+        <div class="index-alert-body">
+          索引服务负责把上传的文本切成片段写进检索库。它没在跑时，上传照样成功、
+          材料照样出现在列表里，但<strong>知识检索一定搜不到</strong>——
+          这不是文件编码或切分策略的问题。
+          先启动索引服务（<code>python -m campusclaw.index_worker</code>），
+          等列表里的状态变成「已建索引」再去检索。
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <main class="shell">
     <div class="stack">
 
@@ -113,10 +133,17 @@
             {% for item in items %}
             <div class="list-row" data-id="{{ item.id }}">
               <div class="grow">
-                <div class="row-title" data-role="title">{{ item.title }}</div>
+                <div class="row-title" data-role="title">
+                  {{ item.title }}
+                  {% if item.original_filename == 'faq.md' %}
+                  <span class="badge badge-neutral" title="这份材料由本班已发布的 FAQ 自动汇总生成，不是教师上传的讲义">系统生成</span>
+                  {% endif %}
+                </div>
                 <div class="row-meta">
                   #{{ item.id }} · {{ item.original_filename }} ·
                   {{ item.size_bytes }} 字节 · 上传于 {{ item.created_at | localtime }}
+                  <span class="badge {{ item.index_tone }}"
+                        title="{{ ('索引失败原因：' ~ item.index_error) if item.index_error else '索引完成后这份材料才能被知识检索搜到' }}">{{ item.index_label }}</span>
                 </div>
               </div>
               <div class="row-actions">
