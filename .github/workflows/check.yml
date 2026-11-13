@@ -51,10 +51,21 @@ jobs:
       - name: 第 9 课注入三件套
         run: uv run python apitest/run_all.py --no-report
 
+      # DEF-10 之后，audit_recheck 是三态：0 通过 / 1 红 / 75 跳过（空库无样本）。
+      # 干净 runner 上只建了表、没有调用记录，所以这里必然是 75。若直接调脚本，
+      # 75 会让这一步「失败」——那是把「没样本可查」当成「查出了问题」，正好是
+      # DEF-10 要修的那个错。这里显式接受 75 并打出 notice，其余退出码照样失败。
       - name: SEC-07 审计七列结构断言
-        run: >-
-          uv run python scripts/audit_recheck.py
-          --db data/app.db --out reports/audit-recheck.md --allow-empty
+        run: |
+          set +e
+          uv run python scripts/audit_recheck.py \
+            --db data/app.db --out reports/audit-recheck.md --allow-empty
+          code=$?
+          if [ "$code" -eq 75 ]; then
+            echo "::notice::空库没有调用样本，SEC-07 判「跳过」而不是「通过」（DEF-10）"
+            exit 0
+          fi
+          exit "$code"
 
       - name: 第 10 课运行观测告警判定
         run: >-
