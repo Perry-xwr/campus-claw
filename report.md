@@ -24,12 +24,12 @@
 
 ## 二、第 10 课：测试、交付与运行验证
 
-**4 通过 / 1 部分 / 1 未执行。** 严格按课件原文逐条对照，不把「有配置」算成「已验证」。
+**5 通过 / 0 部分 / 1 未执行。** 严格按课件原文逐条对照，不把「有配置」算成「已验证」。
 
 | # | 判据 | 结论 | 差在哪 | 证据指向 |
 | --- | --- | --- | --- | --- |
 | 1 | 一键测试挡得住坏提交 | **通过** | — | `reports/gate-red-green.md` |
-| 2 | 环境可复现 | **部分** | 换目录启动缺 `.env` 时 mcp `Exited (2)`；`make check` 因网络超时未在换目录后复现 | `reports/boot-reproduce.md` |
+| 2 | 环境可复现 | **通过** | 干净目录（`git archive`）+ 全新 venv + 装依赖后门禁退出码 0（5 通过 + 1 跳过）；字面 `make check` 未敲（本机无 GNU make），跑的是它唯一一行等价命令 | `reports/boot-reproduce.md`、`reports/evidence/gate-clean-dir.log` |
 | 3 | 推送即构建 | **通过** | 流程 → 测试 → `docker build -t campusclaw:<SHA>`，镜像带 revision 标签可反查提交；无镜像仓库推送 | `reports/pipeline.md` |
 | 4 | 面板看得见技能 | **通过** | 四条曲线按技能分线在 `/claw/` 上出图；**无公网域名**，告警仍无外发通知 | `reports/observe-alert.md` |
 | 5 | 压测有前后对比 | **通过** | 同一脚本同一参数（vus=20、60s）缓存前后两轮：吞吐 +49.2%、P95 −34.5%；余量卡在审计写入 | `reports/bench.md` |
@@ -37,7 +37,7 @@
 
 ### 1. 门禁与演示
 
-`make check` 六项：security / async / apitest / audit / observe / compose。
+`make check` 六项：security / async / apitest / audit / observe / compose。六项的步骤名、参数、顺序只写在一处（`scripts/check_all.py`），`Makefile` 与 CI 都指向它。
 **先红后绿四样齐**：改坏处 `7f9af27`（CSRF 校验被跳过）→ 本地 `18/20`、退出码 **1** →
 修复 `f73a73e` → 本地 `20/20`、退出码 **0**。CI 同步：run #6 `failure`、run #7 `success`。
 全文见 `reports/gate-red-green.md`，流水线运行记录见 `reports/pipeline.md`。
@@ -117,6 +117,6 @@
 ## 五、一句话结论
 
 安全这一课（第 9 课）**五条判据全绿，两条红是真修掉的**；交付这一课（第 10 课）
-**四条通过、一条部分、一条未执行**——镜像、曲线、缓存改进、轻量端都已落地并实测，
-剩下的是一条环境可复现的尾巴、一个真实用户，以及域名与通知这类外部条件。
+**五条通过、一条未执行**——环境可复现、镜像、曲线、缓存改进、轻量端都已落地并实测，
+剩下的只有一个真实用户，以及域名与通知这类外部条件。
 **不把「文件写好了」当「跑绿过」，也不拿自测冒充用户。**

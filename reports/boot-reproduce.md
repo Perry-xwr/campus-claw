@@ -87,29 +87,94 @@ docker compose up -d
 
 也就是说：**只要补上 `.env` 这一步，新目录不需要任何口头补充就能跑起来并登录。**
 
-## 四、`make check`：本轮未复现（如实标注）
+## 四、门禁：换目录后跑出退出码 0（2026-11-13 21:10 复现成功）
 
-课件判据要求干净目录下 `make check` 退出码 0。本次在新目录执行：
+课件判据要求在干净目录跑通门禁、退出码 0。这一节分两次记录：先记当晚失败的原因，
+再记 11-13 换路径后的成功复现。
+
+### 4.1 先前的两次失败（2026-11-12 深夜）
+
+新目录没有 `.venv`，先装依赖：
 
 ```bash
-python -m uv sync --locked     # 需要先装依赖，新目录没有 .venv
+python -m uv sync --locked
 ```
 
-两次尝试均因本机网络超时被中断：
+两次均因本机网络超时被中断：
 
 | 次数 | 超时上限 | 结果 |
 | --- | --- | --- |
 | 1 | 420s | 退出码 124（仍在下载 grpcio / numpy / cryptography） |
 | 2 | 500s | 退出码 124（已下完 openai、pydantic-core，剩余未完成） |
 
-因此 **`make check` 未能在换目录后跑出 0**，此项标注为**未复现**，不写成通过。
-原因是本机到 PyPI 的下载速度，不是代码或锁文件问题——`uv.lock` 已改为官方源，
-`uv lock --check` 与 `uv sync --locked`（原目录）此前均通过。
+当时判定为**未复现**，原因是本机到官方 PyPI 的下载速度，不是代码或锁文件问题
+（`uv lock --check` 与原目录的 `uv sync --locked` 均通过）。
 
-替代证据（**不等同于本条判据**，仅说明同一份代码在容器里是绿的）：原目录已实跑
-`docker compose up -d --build`，并在 `campusclaw-app` 容器内跑通 `security` /
-`async` / `audit` / `observe` 四项（`apitest` 与 `compose` 依赖仓库文件，
-运行时镜像里没有，属不适用，见 `reports/evidence/docker-acceptance.md`）。
+### 4.2 换路径后成功（2026-11-13）
+
+失败点只在「下载」，那就绕开下载源，其余不变：仍从 `git archive HEAD` 导出干净目录
+（不含 `.venv`、不含 `data/`），仍用全新虚拟环境，只把包索引换成清华镜像。
+
+```bash
+cd /d/campus-claw
+mkdir -p .acc10/clean-check2 && git archive HEAD | tar -x -C .acc10/clean-check2
+cd .acc10/clean-check2
+"<本机 CPython 3.11>" -m venv .venv            # 全新环境，不继承原目录任何包
+.venv/Scripts/python.exe -m pip install -q \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt PyYAML==6.0.3
+```
+
+装完用时 **3 分 8 秒**（同一批包，换源前 500 秒没下完）。随后跑门禁：
+
+```bash
+.venv/Scripts/python.exe scripts/check_all.py
+```
+
+| 步骤 | 项 | 结果 | 耗时 |
+| --- | --- | --- | --- |
+| security | SEC-05 密钥扫描 + SEC-06 依赖基线 | 通过 | 9.7s |
+| async | 第 8 课三条判据 | 通过 | 21.6s |
+| apitest | 第 9 课注入三件套 | 通过 | 13.8s |
+| audit | SEC-07 审计七列回查 | **跳过** | 1.1s |
+| observe | 第 10 课运行观测判定 | 通过 | 1.1s |
+| compose | 容器配置静态校验 | 通过 | 8.6s |
+
+**合计 6 项，通过 5，跳过 1，未通过 0，退出码 0。** 完整输出留档在
+`reports/evidence/gate-clean-dir.log`。
+
+#### 为什么 audit 是「跳过」不是「通过」
+
+干净目录的库是门禁当场按 schema 建的，`mcp_tool_calls` 与 `audit_events` 都是
+**0 条**——没有可回查的调用。修复前这里会输出「绿：七列齐备」，而同一份报告的
+表格里七列全标「缺」，是自相矛盾的假绿（DEF-10，见验收报告第五章）。现在它老实
+写成「跳过（无样本）」，汇总表单列一栏，也不计入「通过」的个数。
+
+#### 一个反证：它没有把那 8 条证据冲掉
+
+跑完之后，干净目录里的 `reports/audit-recheck.md` 仍是提交里那份 **230 行、
+8 条调用、35 条拒绝** 的记录，一个字节没变；而它的库确实是空的：
+
+```
+mcp_tool_calls: 0
+audit_events: 0
+```
+
+这正是修复的第二半：**无样本时不覆盖已有报告**。否则每在干净环境跑一次门禁，
+仓库里那份真实回查证据就被清空一次。
+
+#### 口径说明：字面 `make check` 没有执行
+
+本机没有 GNU make（Windows 默认不带，WSL 被安全策略挡住，Docker 守护进程未启动），
+所以敲不了 `make check`。`Makefile` 里这个目标现在只有一行：
+
+```make
+check:
+	python scripts/check_all.py
+```
+
+也就是说跑 `make check` 与跑 `scripts/check_all.py` 是同一件事，本轮跑通的是后者。
+**判据按「等价命令跑通」记通过**；若验收坚持「必须字面执行 make」这一条，则退回
+「部分通过」——差异只在层壳，不在被检查的内容。
 
 ## 五、判定与待办
 
@@ -119,7 +184,8 @@ python -m uv sync --locked     # 需要先装依赖，新目录没有 .venv
 | 补 `.env` 后四服务全起 | 是 |
 | 健康检查全过 | 是（app healthy、`/health` = ok） |
 | 空库自动初始化 + 预置账号可登录 | 是 |
-| 干净目录 `make check` 退出码 0 | **未复现**（网络超时） |
+| 干净目录跑门禁退出码 0 | **是**（5 通过 + 1 跳过 + 0 未通过，见 `reports/evidence/gate-clean-dir.log`） |
+| 字面执行 `make check` | 未执行（本机无 GNU make）；`Makefile` 的该目标只有一行 `python scripts/check_all.py`，跑的是它 |
 
 **修复项（文档侧，不改代码）**：`README.md` 的「快速启动」需要明确写出
 `cp .env.example .env` 并生成 `MCP_AUTH_TOKEN`，否则「一键启动」在干净环境里
