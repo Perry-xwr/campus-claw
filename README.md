@@ -9,7 +9,7 @@ CampusClaw 是面向课程班级的教学材料管理、知识检索与协作答
 - **班级答疑广场**：问题、回复、采纳、关闭及教师管理；教师确认后可将 FAQ 发布为本班知识材料。
 - **异步批改**：提交接口返回任务标识，独立 SQLite 消费者处理队列；当前批改采用确定性本地规则，不是真实大模型评分；支持状态查询、重试与幂等结果。三项异步验收入口及历史证据见[异步批改说明](docs/IMPLEMENTATION.md#异步批改)和[验收记录](reports/demo-walkthrough.md)。这不代表项目 37 个业务验收场景已通过。
 - **MCP 工具接入**：教师管理服务和工具白名单，工具调用按授权服务层执行并记录审计。
-- **运行观测与轻量端**：`/claw/` 面板按技能分线出调用量、错误率、接口 P95 与队列深度四条曲线，5 条告警规则可红可绿；`/m` 是手机浏览器直接打开的 H5，复用同一套接口，跨源按白名单声明。
+- **运行观测与轻量端**：`/claw/` 面板按技能分线出调用量、错误率、接口 P95 与队列深度四条曲线，5 条告警规则可红可绿；可选通知脚本轮询 `critical` 并发送 Webhook，需运维自行配置；`/m` 是手机浏览器直接打开的 H5，复用同一套接口，跨源按白名单声明。
 
 ## 技术架构
 
@@ -67,7 +67,7 @@ Compose 的 app、worker、MCP 共用 `ghcr.io/perry-xwr/campus-claw` 镜像。�
 
 ## 验收与测试
 
-六项门禁覆盖安全、异步、注入、审计、观测与容器配置，任一项判红即以非零退出码结束，同一份清单同时用于本地自检与 CI：
+七项门禁覆盖安全、异步、注入、审计、观测、外部告警通知隔离回归与容器配置，任一项判红即以非零退出码结束，同一份清单同时用于本地自检与 CI：
 
 ```bash
 pwsh -File scripts/check-all.ps1   # Windows 入口
@@ -81,7 +81,8 @@ make check                         # 需 GNU make，等价
 | 3 | `apitest` | 第 9 课注入三件套反例（SQL / XSS / CSRF），20 条用例 |
 | 4 | `audit` | SEC-07 审计日志七列结构断言与关联键断言 |
 | 5 | `observe` | 第 10 课运行观测 5 条告警规则，`critical` 即红 |
-| 6 | `compose` | 容器配置静态校验 11 项，不需要 Docker |
+| 6 | `alert-notify` | 外部告警通知隔离回归（临时 SQLite + Mock Webhook） |
+| 7 | `compose` | 容器配置静态校验 11 项，不需要 Docker |
 
 推送与 PR 由 [`.github/workflows/check.yml`](.github/workflows/check.yml) 执行同一份清单，证据以 `check-evidence` 产物归档；运行结果见 [Actions](https://github.com/Perry-xwr/campus-claw/actions) 与 [CI 运行记录](reports/evidence/ci-first-run.md)。
 

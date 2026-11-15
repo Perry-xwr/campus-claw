@@ -81,6 +81,31 @@ docker compose ps
 
 默认镜像为 `ghcr.io/perry-xwr/campus-claw:main`。要固定或回滚版本，可设置 `CAMPUSCLAW_IMAGE=ghcr.io/perry-xwr/campus-claw:sha-<完整提交 SHA>` 后再 pull/up。GHCR 包权限由仓库的 Actions `GITHUB_TOKEN` 发布；私有包的部署主机需先登录 GHCR。发布工作流等待 main 的 `check` 工作流成功后，再按该次 CI 对应的提交 SHA 构建和推送，并验证 OCI revision 标签、digest 与隔离容器 `/health`。
 
+### 外部告警通知（可选）
+
+`GET /api/health/alerts` 仍是告警规则的唯一来源。定时调用 `scripts/alert_notify.sh`（Linux/macOS）或 `python scripts/alert_notify.py`（Windows/Linux）即可检查并发送 critical 告警。通知器只发送规则类型、固定异常摘要和检测时间；不转发接口中的动态标题、提示、请求明细或用户内容。重复的同一组 critical 规则只通知一次；critical 全部清除时发送一次恢复通知。Webhook 失败不会推进本地去重状态，下一轮会重试。
+
+配置由运行账户的环境提供，不写入仓库、命令历史或日志：
+
+| 环境变量 | 必需 | 用途 |
+| --- | --- | --- |
+| `CAMPUSCLAW_ALERT_WEBHOOK_URL` | 是 | HTTPS JSON Webhook 地址；本地 Mock 测试允许 loopback HTTP |
+| `CAMPUSCLAW_ALERTS_URL` | 否 | 告警 JSON 接口；默认 `http://127.0.0.1:8080/api/health/alerts` |
+| `CAMPUSCLAW_ALERT_STATE_FILE` | 否 | 去重状态文件；默认 `.run/alert-notify-state.json` |
+| `CAMPUSCLAW_ALERT_TIMEOUT_SECONDS` | 否 | 每次 HTTP 请求超时，范围 1–30 秒，默认 8 秒 |
+
+Webhook 接收端应接受 JSON POST 并用 2xx 表示成功；通知体只含 `type`、`event`、`detected_at`、安全摘要和规则类型。非 2xx、超时、网络错误、无效响应都会以非零退出并写脱敏错误日志。Linux 可用 systemd timer 定期运行脚本。将环境键值保存在仅服务账户可读的 `/etc/campusclaw/alert-notify.env`（权限 `0600`），例如：
+
+```text
+CAMPUSCLAW_ALERT_WEBHOOK_URL=<由运维安全配置的 HTTPS Webhook>
+CAMPUSCLAW_ALERTS_URL=http://127.0.0.1:8080/api/health/alerts
+CAMPUSCLAW_ALERT_STATE_FILE=/var/lib/campusclaw/alert-notify-state.json
+```
+
+由 oneshot service 的 `EnvironmentFile=` 读取；timer 设置 `OnUnitActiveSec=5min`。service 配置 `User=campusclaw`、`WorkingDirectory=/opt/campus-claw`、`EnvironmentFile=/etc/campusclaw/alert-notify.env` 和 `ExecStart=/opt/campus-claw/scripts/alert_notify.sh`。不要把 Webhook URL 放到 unit、timer、crontab 或命令参数中。
+
+Windows 可用任务计划程序每 5 分钟运行一次：程序选择项目已验证的 Python 3.11 解释器，参数为 `scripts\alert_notify.py`，起始目录为项目根目录。先通过 Windows 用户环境变量界面将 `CAMPUSCLAW_ALERT_WEBHOOK_URL` 等变量设置到专用运行账户，并限制该账户和状态文件访问；任务动作中只填解释器和脚本路径，不填变量值。测试命令为 `python scripts/test_alert_notify.py`，只使用临时 SQLite 和本地 Mock Webhook；部署前需由管理员自行创建真实环境变量和任务，本仓库不自动安装或启用计划任务。
+
 四个容器：
 
 | 服务 | 端口 | 作用 |
