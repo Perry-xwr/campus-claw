@@ -163,3 +163,15 @@ run #12 的红**不是坏提交，是门禁口径在 CI 上没跟上**：DEF-10 
 （上一份 230 行真证据没被冲掉，即 DEF-10 的修复仍生效）、`check_observe` 0、`check_compose` 0。
 
 这一对红绿说明的是同一件事的两面：**红灯能定位到具体步骤和退出码，绿灯才有意义**。
+
+## 七、GHCR 发布自动化（T4，待首次发布）
+
+2026-11-15 新增 `.github/workflows/publish-ghcr.yml`，main 的 `check` 门禁成功后会使用仓库
+`GITHUB_TOKEN` 发布到 `ghcr.io/perry-xwr/campus-claw`。工作流权限限定为 `contents: read`
+与 job 级 `packages: write`，不增加仓库密钥。镜像标签包含 `main` 和完整提交 SHA；
+OCI revision 标签记录完整 Git SHA。
+
+发布 job 会按 digest 拉取刚发布的镜像，核对 digest 与 revision，并在没有宿主机数据挂载的
+临时容器中检查 `/health`。此分支尚未合并，main/tag 发布触发器尚未运行，因此目前没有已发布的
+GHCR digest，也不把该流程记作已发布验收。首次成功运行后，应将 Actions run 链接、完整 SHA、
+digest 和健康检查结果补入本节。

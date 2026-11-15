@@ -11,7 +11,7 @@ services:
       #   PIP_INDEX_URL=https://pypi.org/simple docker compose build
       args:
         PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
-    image: campusclaw:latest
+    image: ${CAMPUSCLAW_IMAGE:-ghcr.io/perry-xwr/campus-claw:main}
     container_name: campusclaw-app
     environment:
       # 全部留空时应用会回落到内置测试凭据（见 README「预置账号」），
@@ -55,7 +55,7 @@ services:
       #   PIP_INDEX_URL=https://pypi.org/simple docker compose build
       args:
         PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
-    image: campusclaw:latest
+    image: ${CAMPUSCLAW_IMAGE:-ghcr.io/perry-xwr/campus-claw:main}
     command: ["python", "-m", "campusclaw.index_worker"]
     environment:
       QDRANT_URL: "http://qdrant:6333"
@@ -92,7 +92,7 @@ services:
       #   PIP_INDEX_URL=https://pypi.org/simple docker compose build
       args:
         PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
-    image: campusclaw:latest
+    image: ${CAMPUSCLAW_IMAGE:-ghcr.io/perry-xwr/campus-claw:main}
     # 第 6 课：自建 MCP 工具服务。与主应用同镜像、不同 command；
     # 令牌经环境变量注入（项目根 .env 的 MCP_AUTH_TOKEN），不写死在文件或镜像层。
     command: ["python", "-m", "mcp_server"]

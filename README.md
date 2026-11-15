@@ -47,6 +47,16 @@ docker compose up -d
 
 `MCP_AUTH_TOKEN` 只从环境变量读取、不写入代码或镜像，`.env` 也不进版本库，所以这一步无法省略。缺令牌时 `campusclaw-mcp-1` 会停在 `Exited (2)` 并在日志里说明原因——这是 fail-closed 的设计，不是故障。完整实测记录见[换目录启动复现](reports/boot-reproduce.md)。
 
+生产或演示主机可从 GHCR 拉取已发布镜像（默认 `main` 标签），无需本机重建：
+
+```bash
+docker compose pull
+docker compose up -d --no-build
+docker compose ps
+```
+
+Compose 的 app、worker、MCP 共用 `ghcr.io/perry-xwr/campus-claw` 镜像。发布工作流只会在 main 的 `check` 门禁成功后推送 `main` 与不可变 `sha-<提交>` 标签；部署或回滚时可用 `CAMPUSCLAW_IMAGE=ghcr.io/perry-xwr/campus-claw:sha-<提交>` 指定精确版本。私有包需先在目标主机登录 GHCR。构建上下文排除 `.env`、数据库、上传材料和运行日志；密钥只通过运行时环境变量注入。
+
 ## 使用演示
 
 登录后，教师可在 `/materials` 管理材料，在 `/knowledge` 试用检索，在 `/qa` 管理班级问题；学生可在 `/tutor` 使用解题助手并在 `/qa` 参与答疑。异步批改 API 为 `POST /api/submissions`，查询 `/api/tasks/{task_id}`；消费者可用 `uv run python -m campusclaw.task_worker` 启动。页面、接口与隔离验收命令详见[使用与实现说明](docs/IMPLEMENTATION.md)。运行观测面板在 `/claw/`，手机轻量端在 `/m`；三个演示脚本见[轻量端走查](reports/h5-lightweight.md)与[观测面板与告警](reports/observe-alert.md)。
