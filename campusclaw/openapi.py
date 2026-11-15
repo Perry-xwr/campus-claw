@@ -496,7 +496,7 @@ def build_openapi() -> dict:
                             },
                             ["strategy"],
                         ),
-                        "example": {"strategy": "auto"},
+                        "example": {"strategy": "auto", "chunk_size": 800, "overlap_ratio": 0.1},
                     }
                 },
             },

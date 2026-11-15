@@ -98,48 +98,149 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         raise
 
 
-def enqueue(conn: sqlite3.Connection, material_id: int, strategy: dict) -> int:
-    """Queue a teacher-requested rebuild; one pending/running job per material."""
+def enqueue(conn: sqlite3.Connection, material_id: int, strategy: dict) -> dict:
+    """Queue or safely update a queued rebuild; never replace a running strategy."""
     stamp = utc_now()
+    payload = json.dumps(strategy, ensure_ascii=False, sort_keys=True)
     conn.execute("BEGIN IMMEDIATE")
     try:
         busy = conn.execute(
-            "SELECT id FROM index_jobs WHERE material_id=? AND status IN ('queued','running') LIMIT 1",
+            "SELECT id,status,strategy_json FROM index_jobs "
+            "WHERE material_id=? AND status IN ('queued','running') "
+            "ORDER BY CASE status WHEN 'running' THEN 0 ELSE 1 END,id DESC LIMIT 1",
             (material_id,),
         ).fetchone()
         if busy:
-            conn.execute("ROLLBACK")
-            return int(busy["id"])
-        payload = json.dumps(strategy, ensure_ascii=False, sort_keys=True)
+            current = json.loads(busy["strategy_json"])
+            if busy["status"] == "running" and current != strategy:
+                conn.execute("ROLLBACK")
+                raise IndexTaskRunning(int(busy["id"]), current)
+            updated = False
+            if busy["status"] == "queued" and current != strategy:
+                conn.execute(
+                    "UPDATE index_jobs SET strategy_json=?,last_error=NULL,updated_at=? WHERE id=?",
+                    (payload, stamp, busy["id"]),
+                )
+                conn.execute(
+                    "UPDATE material_index SET status='pending',last_error=NULL,updated_at=? "
+                    "WHERE material_id=?",
+                    (stamp, material_id),
+                )
+                updated = True
+            conn.execute("COMMIT")
+            return {
+                "job_id": int(busy["id"]),
+                "status": str(busy["status"]),
+                "strategy": strategy if updated else current,
+                "updated_existing": updated,
+            }
         conn.execute("""
             INSERT OR IGNORE INTO material_index(material_id,status,strategy_json,updated_at)
             VALUES (?, 'pending', ?, ?)
-        """, (material_id, payload, stamp))
+        """, (material_id, json.dumps(AUTO_STRATEGY, sort_keys=True), stamp))
         cursor = conn.execute("""
             INSERT INTO index_jobs(material_id,strategy_json,status,created_at,updated_at)
             VALUES (?,?,'queued',?,?)
         """, (material_id, payload, stamp, stamp))
-        conn.execute("UPDATE material_index SET status='pending',strategy_json=?,last_error=NULL,updated_at=? WHERE material_id=?",
-                     (payload, stamp, material_id))
+        # strategy_json on material_index describes the active generation. The requested
+        # strategy remains on index_jobs until the new generation is committed.
+        conn.execute("UPDATE material_index SET status='pending',last_error=NULL,updated_at=? WHERE material_id=?",
+                     (stamp, material_id))
         conn.execute("COMMIT")
-        return int(cursor.lastrowid)
+        return {
+            "job_id": int(cursor.lastrowid),
+            "status": "queued",
+            "strategy": strategy,
+            "updated_existing": False,
+        }
     except BaseException:
-        conn.execute("ROLLBACK")
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
         raise
 
 
+class IndexTaskRunning(Exception):
+    """A running rebuild cannot be replaced with a different strategy."""
+
+    def __init__(self, job_id: int, strategy: dict):
+        super().__init__("an index rebuild is already running")
+        self.job_id = job_id
+        self.strategy = strategy
+
+
+def _decode_strategy(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _job_is_stalled(status: str, updated_at: str | None) -> bool:
+    if not updated_at:
+        return False
+    try:
+        stamp = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return False
+    threshold = QUEUED_WORKER_HINT_SECONDS if status == "queued" else STALL_SECONDS
+    return (datetime.now(timezone.utc) - stamp).total_seconds() > threshold
+
+
 def index_status(conn: sqlite3.Connection, material_id: int) -> dict:
-    row = conn.execute("SELECT active_generation,status,last_error,updated_at FROM material_index WHERE material_id=?",
-                       (material_id,)).fetchone()
-    if row is None:
-        return {"status": "pending", "active_generation": 0, "last_error": None}
-    return dict(row)
+    row = conn.execute(
+        "SELECT active_generation,status,strategy_json,last_error,updated_at "
+        "FROM material_index WHERE material_id=?", (material_id,)
+    ).fetchone()
+    active_generation = int(row["active_generation"]) if row else 0
+    active_strategy = None
+    if active_generation:
+        active = conn.execute(
+            "SELECT strategy_json FROM knowledge_chunks WHERE material_id=? "
+            "AND generation=? AND index_status='ready' ORDER BY chunk_index LIMIT 1",
+            (material_id, active_generation),
+        ).fetchone()
+        active_strategy = _decode_strategy(active["strategy_json"]) if active else None
+        if active_strategy is None and row:
+            active_strategy = _decode_strategy(row["strategy_json"])
+    pending_row = conn.execute(
+        "SELECT id,status,strategy_json,created_at,updated_at FROM index_jobs "
+        "WHERE material_id=? AND status IN ('queued','running') "
+        "ORDER BY CASE status WHEN 'running' THEN 0 ELSE 1 END,id DESC LIMIT 1",
+        (material_id,),
+    ).fetchone()
+    pending = None
+    if pending_row:
+        pending_status = str(pending_row["status"])
+        updated_at = str(pending_row["updated_at"] or pending_row["created_at"])
+        pending = {
+            "job_id": int(pending_row["id"]),
+            "status": pending_status,
+            "strategy": _decode_strategy(pending_row["strategy_json"]),
+            "updated_at": updated_at,
+            "worker_stalled": _job_is_stalled(pending_status, updated_at),
+        }
+    return {
+        "status": str(row["status"]) if row else "pending",
+        "active_generation": active_generation,
+        "active_strategy": active_strategy,
+        "pending": pending,
+        "worker_stalled": bool(pending and pending["worker_stalled"]),
+        "last_error": row["last_error"] if row else None,
+        "updated_at": row["updated_at"] if row else None,
+        "recorded": row is not None,
+    }
 
 
 #: 索引状态超过这么久没变化，就认为没有服务在消费队列。
 #: 取 120 秒：本机实测正常降级重建在 10 秒内完成（见 reports/user-trial-record.md），
 #: 两分钟纹丝不动，基本可以断定索引服务没起来，而不是「还在切分」。
 STALL_SECONDS = 120
+QUEUED_WORKER_HINT_SECONDS = 30
 
 
 def index_status_map(conn: sqlite3.Connection, class_id: int) -> dict[int, dict | None]:
@@ -157,15 +258,9 @@ def index_status_map(conn: sqlite3.Connection, class_id: int) -> dict[int, dict 
             WHERE m.class_id = ? AND m.status = 'active'""",
         (class_id,),
     ).fetchall()
-    return {
-        int(row["material_id"]): (
-            None
-            if row["status"] is None
-            else {
-                "status": row["status"],
-                "last_error": row["last_error"],
-                "updated_at": row["updated_at"],
-            }
-        )
-        for row in rows
-    }
+    result = {}
+    for row in rows:
+        material_id = int(row["material_id"])
+        state = index_status(conn, material_id)
+        result[material_id] = state if state["recorded"] or state["pending"] else None
+    return result

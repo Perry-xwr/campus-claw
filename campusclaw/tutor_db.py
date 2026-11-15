@@ -230,6 +230,7 @@ def _write_keyword_chunks(
     class_id: int,
     entry_id: int,
     body_text: str,
+    strategy: dict | None = None,
 ) -> int:
     """写一批 ready 关键词切片与 FTS 行；调用方负责事务。
 
@@ -237,14 +238,15 @@ def _write_keyword_chunks(
     留下旧代（含失败代），固定写第 1 代会与既有数据冲突（UNIQUE 约束），也会让
     「最新一代是否就绪」这一判据永远为假，补建反复触发。
     """
-    from campusclaw.chunking import split_body
+    from campusclaw.chunking import split_body, validate_strategy
     from campusclaw.retrieval import fts_tokens
 
-    pieces = split_body(body_text, AUTO_STRATEGY)
+    strategy = validate_strategy(strategy or AUTO_STRATEGY)
+    pieces = split_body(body_text, strategy)
     if not pieces:
         return 0
     stamp = utc_now()
-    strategy_json = json.dumps(AUTO_STRATEGY, ensure_ascii=False, sort_keys=True)
+    strategy_json = json.dumps(strategy, ensure_ascii=False, sort_keys=True)
     generation = int(
         conn.execute(
             "SELECT COALESCE(MAX(generation),0)+1 FROM knowledge_chunks WHERE material_id=?",
@@ -297,7 +299,10 @@ def _write_keyword_chunks(
     return len(pieces)
 
 
-def backfill_keyword_ready(conn: sqlite3.Connection) -> int:
+def backfill_keyword_ready(
+    conn: sqlite3.Connection,
+    strategy_overrides: dict[int, dict] | None = None,
+) -> int:
     """为「最新一代没有可检索切片」的 active 材料补建关键词就绪代次，返回材料数。
 
     判据从「有没有任何切片」改成「最新一代是否 ready」，原因是前者会把失败代
@@ -309,9 +314,11 @@ def backfill_keyword_ready(conn: sqlite3.Connection) -> int:
     检索立刻可用；旧失败代在写入时一并清理。
     """
     rows = conn.execute("""
-        SELECT m.id, m.class_id, k.id AS entry_id, k.body_text
+        SELECT m.id, m.class_id, k.id AS entry_id, k.body_text,
+               mi.strategy_json AS active_strategy_json
         FROM materials m
         JOIN knowledge_entries k ON k.material_id = m.id
+        LEFT JOIN material_index mi ON mi.material_id = m.id
         WHERE m.status = 'active'
           AND NOT EXISTS (
               SELECT 1 FROM knowledge_chunks c
@@ -323,18 +330,25 @@ def backfill_keyword_ready(conn: sqlite3.Connection) -> int:
           AND NOT EXISTS (
               SELECT 1 FROM index_jobs j
               WHERE j.material_id = m.id
-                AND j.status IN ('queued', 'running') AND j.attempts > 0)
+                AND j.status IN ('queued', 'running'))
     """).fetchall()
     count = 0
     for row in rows:
         conn.execute("BEGIN IMMEDIATE")
         try:
+            override = (strategy_overrides or {}).get(int(row["id"]))
+            if override is None:
+                try:
+                    override = json.loads(row["active_strategy_json"] or "null")
+                except json.JSONDecodeError:
+                    override = None
             if _write_keyword_chunks(
                 conn,
                 int(row["id"]),
                 int(row["class_id"]),
                 int(row["entry_id"]),
                 row["body_text"],
+                override,
             ):
                 count += 1
             conn.execute("COMMIT")
