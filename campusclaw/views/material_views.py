@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, request, send_file
 
 from campusclaw import materials as svc
 from campusclaw import request_context as rc
@@ -66,9 +67,11 @@ def download_api(material_id: str):
         raise ApiError(404, "MATERIAL_NOT_FOUND", MESSAGES["MATERIAL_NOT_FOUND"])
     settings = rc.get_settings()
     data = svc.read_material_file(settings, int(user["class_id"]), material["storage_key"])
-    response = Response(data, mimetype="text/plain; charset=utf-8")
-    response.headers["Content-Disposition"] = (
-        f"attachment; filename=\"{_safe_download_name(material['original_filename'])}\""
+    response = send_file(
+        BytesIO(data),
+        mimetype="text/plain; charset=utf-8",
+        as_attachment=True,
+        download_name=_safe_download_name(material["original_filename"]),
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response, 200

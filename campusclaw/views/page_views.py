@@ -38,6 +38,7 @@ def index_panel(conn, items: list[dict], class_id: int) -> dict:
     unfinished = 0
     for item in items:
         state = states.get(int(item["id"]))
+        item["index_state"] = state
         status = None if state is None else state["status"]
         item["index_status"] = status
         item["index_error"] = None if state is None else state["last_error"]
@@ -97,7 +98,10 @@ def materials_page():
 @bp.get("/knowledge")
 def knowledge_page():
     user = rc.require_page_auth()
-    items = svc.list_materials(rc.get_conn(), int(user["class_id"]))
+    conn = rc.get_conn()
+    class_id = int(user["class_id"])
+    items = svc.list_materials(conn, class_id)
+    index_panel(conn, items, class_id)
     # 检索方式的可选项由服务端能力决定，不让界面给出做不到的默认值：
     # 向量服务没配时，hybrid / vector 一定 503，而关键词路（FTS5）是可用的。
     # 默认选中一个必然失败的模式，等于把环境故障记到使用者账上。

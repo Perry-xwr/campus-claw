@@ -122,6 +122,7 @@ def process_one(conn, config: RetrievalConfig, *, embedder_factory=embedding_mod
     generation: int | None = None
     inserted_ids: list[int] = []
     client = None
+    strategy = {"strategy": "auto"}
     try:
         material = conn.execute("""
             SELECT m.id,m.class_id,k.id AS knowledge_entry_id,k.body_text
@@ -156,6 +157,37 @@ def process_one(conn, config: RetrievalConfig, *, embedder_factory=embedding_mod
         except BaseException:
             conn.execute("ROLLBACK")
             raise
+
+        if not config.embedding_ready:
+            # Keyword indexing is a complete mode by itself. Do not create a pending
+            # generation and then fail on embedding/Qdrant when those services are absent.
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                for cid, chunk in zip(inserted_ids, pieces):
+                    conn.execute(
+                        "INSERT INTO knowledge_chunks_fts(rowid,token_text) VALUES (?,?)",
+                        (cid, fts_tokens(chunk.text)),
+                    )
+                conn.execute(
+                    "UPDATE knowledge_chunks SET index_status='ready' "
+                    "WHERE material_id=? AND generation=?",
+                    (material["id"], generation),
+                )
+                conn.execute(
+                    "UPDATE material_index SET active_generation=?,status='ready',"
+                    "strategy_json=?,last_error=NULL,updated_at=? WHERE material_id=?",
+                    (generation, job["strategy_json"], retrieval_db.utc_now(), material["id"]),
+                )
+                conn.execute(
+                    "UPDATE index_jobs SET status='done',last_error=NULL,updated_at=? WHERE id=?",
+                    (retrieval_db.utc_now(), job["id"]),
+                )
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+            cache.invalidate_class(int(material["class_id"]))
+            return True
 
         embedder = embedder_factory(config)
         client = client_factory(config)
@@ -223,7 +255,10 @@ def process_one(conn, config: RetrievalConfig, *, embedder_factory=embedding_mod
         # 原实现的补建只挂在 create_app 里，容器长时间运行时新上传的材料会一直
         # 检索不到（要重启才自愈）；这里让「向量失败 → 关键词兜底」在同一个进程内闭合。
         try:
-            rebuilt = tutor_db.backfill_keyword_ready(conn)
+            rebuilt = tutor_db.backfill_keyword_ready(
+                conn,
+                strategy_overrides={int(job["material_id"]): strategy},
+            )
             if rebuilt:
                 LOG.info("Keyword fallback rebuilt %s material(s) after failure", rebuilt)
         except Exception:
@@ -258,11 +293,14 @@ def run(*, once: bool = False, interval: float = 2.0, use_dotenv: bool = True) -
             )
         while True:
             worked = process_one(conn, config)
-            try:
-                retired = _retire_stale(conn, config)
-            except Exception:
+            if config.embedding_ready:
+                try:
+                    retired = _retire_stale(conn, config)
+                except Exception:
+                    retired = 0
+                    LOG.debug("Vector cleanup will retry", exc_info=True)
+            else:
                 retired = 0
-                LOG.debug("Vector cleanup will retry", exc_info=True)
             if once:
                 if not worked:
                     break

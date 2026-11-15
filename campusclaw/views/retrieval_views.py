@@ -92,6 +92,7 @@ def index_status_api(material_id: str):
     if materials.get_active_material(conn, material_id_int, int(user["class_id"])) is None:
         raise ApiError(404, "MATERIAL_NOT_FOUND", MESSAGES["MATERIAL_NOT_FOUND"])
     return jsonify({"material_id": material_id_int,
+                    "embedding_ready": RetrievalConfig.from_env().embedding_ready,
                     **retrieval_db.index_status(conn, material_id_int)}), 200
 
 
@@ -114,6 +115,12 @@ def reindex_api(material_id: str):
         strategy = validate_strategy(raw)
     except StrategyError as exc:
         raise ApiError(400, "INVALID_STRATEGY", str(exc)) from exc
-    job_id = retrieval_db.enqueue(conn, material_id_int, strategy)
-    return jsonify({"material_id": material_id_int, "job_id": job_id,
-                    "status": "queued"}), 202
+    try:
+        queued = retrieval_db.enqueue(conn, material_id_int, strategy)
+    except retrieval_db.IndexTaskRunning as exc:
+        raise ApiError(
+            409,
+            "INDEX_TASK_RUNNING",
+            "该材料已有索引任务正在执行，新参数未提交。请等待任务完成后再重建。",
+        ) from exc
+    return jsonify({"material_id": material_id_int, **queued}), 202

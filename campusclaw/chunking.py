@@ -23,12 +23,19 @@ class StrategyError(ValueError):
 
 def validate_strategy(raw: object) -> dict:
     if raw is None:
-        return {"strategy": "auto"}
+        raw = {"strategy": "auto"}
     if not isinstance(raw, dict):
         raise StrategyError("strategy must be an object")
     name = raw.get("strategy", "auto")
     if name == "auto":
-        return {"strategy": "auto"}
+        try:
+            size = int(raw.get("chunk_size", 800))
+            ratio = float(raw.get("overlap_ratio", 0.1))
+        except (TypeError, ValueError) as exc:
+            raise StrategyError("invalid chunk size or overlap") from exc
+        if not (100 <= size <= 2000 and 0 <= ratio <= 0.5):
+            raise StrategyError("auto size must be 100..2000 and overlap 0..0.5")
+        return {"strategy": "auto", "chunk_size": size, "overlap_ratio": ratio}
     if name == "hierarchy":
         return {"strategy": "hierarchy"}
     if name != "custom":
@@ -104,6 +111,8 @@ def split_body(body: str, raw_strategy: object = None) -> list[Chunk]:
             parts.extend(_split_section(text[start:end], start, 800, 80,
                                         ["\n\n", "\n", "。", ""], basis))
     else:
-        parts = _split_section(text, 0, 800, 80, ["\n\n", "\n", "。", ""], basis)
+        size = strategy["chunk_size"]
+        overlap = round(size * strategy["overlap_ratio"])
+        parts = _split_section(text, 0, size, overlap, ["\n\n", "\n", "。", ""], basis)
     return [Chunk(i, c.start, c.end, c.text, c.offset_basis)
             for i, c in enumerate(parts, 1)]

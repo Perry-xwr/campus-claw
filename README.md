@@ -17,10 +17,22 @@ Python 3.11、Flask 3.1、SQLite/FTS5、Jinja 服务端页面、JSON 与 SSE API
 
 ## 快速启动
 
-需要 Python 3.11 和 uv。在项目根目录运行：
+需要 Python 3.11 和 uv。在项目根目录同步锁定依赖：
 
 ```bash
 uv sync --locked
+```
+
+索引 Worker 与 Flask 必须作为两个进程运行。在未配置 Embedding API 时，Worker 会持续消费任务并建立关键词/FTS 切片；不需要 Docker 或 Qdrant。Windows 本机可用一条命令启动 Flask、Worker，并跳过可选的 Docker 与 MCP：
+
+```powershell
+pwsh -NoProfile -File scripts\start-all.ps1 -NoDocker -NoMcp
+```
+
+其他系统或手动启动时，在两个终端分别运行：
+
+```bash
+uv run python -m campusclaw.index_worker
 uv run python app.py
 ```
 

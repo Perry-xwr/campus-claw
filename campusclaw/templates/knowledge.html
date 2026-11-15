@@ -51,10 +51,11 @@
     {% if user.role == 'teacher' %}
     <section class="card"><div class="card-head"><div class="card-title">材料索引</div><span class="badge badge-accent">教师可重建</span></div>
       <div class="card-body"><div class="row-list" id="index-list">
-      {% for item in items %}<div class="list-row" data-id="{{ item.id }}"><div class="grow"><div class="row-title">{{ item.title }}</div><div class="row-meta" data-role="status">读取状态中…</div></div>
-        <div class="row-actions"><select class="input" data-role="strategy"><option value="auto">自动切分</option><option value="hierarchy">按标题分章</option><option value="custom">自定义切分</option></select>
-          <input class="input" data-role="size" type="number" min="100" max="2000" value="800" title="每片字符数" style="width:90px"><input class="input" data-role="overlap" type="number" min="0" max="0.5" step="0.05" value="0.1" title="重叠比例" style="width:80px">
-          <select class="input" data-role="separator" title="自定义分隔符"><option value="blankline">空行</option><option value="newline">换行</option><option value="sentence">句号</option></select>
+      {% for item in items %}{% set state = item.index_state or {} %}{% set active = state.active_strategy or {'strategy':'auto'} %}{% set pending = state.pending %}{% set selected = pending.strategy if pending else active %}
+      <div class="list-row" data-id="{{ item.id }}"><div class="grow"><div class="row-title">{{ item.title }}</div><div class="row-meta" data-role="status">读取状态中…</div></div>
+        <div class="row-actions"><select class="input" data-role="strategy"><option value="auto"{% if selected.strategy == 'auto' %} selected{% endif %}>自动切分</option><option value="hierarchy"{% if selected.strategy == 'hierarchy' %} selected{% endif %}>按标题分章</option><option value="custom"{% if selected.strategy == 'custom' %} selected{% endif %}>自定义切分</option></select>
+          <input class="input" data-role="size" type="number" min="100" max="2000" value="{{ selected.chunk_size|default(800) if selected.strategy in ['auto', 'custom'] else 800 }}" title="每片字符数（自动/自定义可调，默认 800）" style="width:90px"{% if selected.strategy == 'hierarchy' %} disabled{% endif %}><input class="input" data-role="overlap" type="number" min="0" max="0.5" step="0.05" value="{{ selected.overlap_ratio|default(0.1) if selected.strategy in ['auto', 'custom'] else 0.1 }}" title="重叠比例（自动/自定义可调，默认 10%）" style="width:80px"{% if selected.strategy == 'hierarchy' %} disabled{% endif %}>
+          <select class="input" data-role="separator" title="自定义分隔符"{% if selected.strategy != 'custom' %} disabled{% endif %}><option value="blankline"{% if selected.separator|default('blankline') == 'blankline' %} selected{% endif %}>空行</option><option value="newline"{% if selected.separator|default('blankline') == 'newline' %} selected{% endif %}>换行</option><option value="sentence"{% if selected.separator|default('blankline') == 'sentence' %} selected{% endif %}>句号</option></select>
           <button type="button" class="btn btn-outline btn-sm" data-role="reindex">重建</button></div></div>{% endfor %}
       </div></div></section>
     {% endif %}
@@ -118,14 +119,63 @@ document.getElementById('ask').addEventListener('click',async function(){
 });
 document.querySelectorAll('#index-list .list-row').forEach(function(row){
   const id=row.dataset.id, status=row.querySelector('[data-role=status]');
+  const strategyInput=row.querySelector('[data-role=strategy]');
+  const sizeInput=row.querySelector('[data-role=size]');
+  const overlapInput=row.querySelector('[data-role=overlap]');
+  const separatorInput=row.querySelector('[data-role=separator]');
+  const initialDraft={size:Number(sizeInput.value)||800,overlap:Number(overlapInput.value),separator:separatorInput.value||'blankline'};
+  let drafts={
+    auto:strategyInput.value==='auto'?{size:initialDraft.size,overlap:initialDraft.overlap}:{size:800,overlap:0.1},
+    custom:strategyInput.value==='custom'?{size:initialDraft.size,overlap:initialDraft.overlap,separator:initialDraft.separator}:{size:800,overlap:0.1,separator:'blankline'}
+  };
+  let previousStrategy=strategyInput.value;
   let poll=null;
-  async function refresh(){ clearTimeout(poll); try{const r=await fetch('/api/materials/'+id+'/index-status');const d=await r.json();status.textContent='索引状态：'+d.status+(d.last_error?' · '+d.last_error:'');if(d.status==='pending'||d.status==='running') poll=setTimeout(refresh,4000);}catch(e){status.textContent='状态暂不可用';}}
+  function captureDraft(strategy){
+    if(strategy==='auto'||strategy==='custom'){
+      drafts[strategy]={size:Number(sizeInput.value)||800,overlap:Number.isFinite(Number(overlapInput.value))?Number(overlapInput.value):0.1};
+      if(strategy==='custom')drafts.custom.separator=separatorInput.value||'blankline';
+    }
+  }
+  function toggleParameters(){
+    const current=strategyInput.value;
+    if(previousStrategy!==current)captureDraft(previousStrategy);
+    const editable=current==='auto'||current==='custom';
+    sizeInput.disabled=!editable;overlapInput.disabled=!editable;separatorInput.disabled=current!=='custom';
+    if(editable){
+      const draft=drafts[current]||{size:800,overlap:0.1};
+      sizeInput.value=draft.size;overlapInput.value=draft.overlap;
+      if(current==='custom')separatorInput.value=draft.separator||'blankline';
+    }else{sizeInput.value=800;overlapInput.value=0.1;separatorInput.value='blankline';}
+    previousStrategy=current;
+  }
+  sizeInput.addEventListener('input',function(){captureDraft(strategyInput.value);});
+  overlapInput.addEventListener('input',function(){captureDraft(strategyInput.value);});
+  separatorInput.addEventListener('change',function(){captureDraft(strategyInput.value);});
+  function describe(config){
+    if(!config)return '未建立';
+    if(config.strategy==='custom')return '自定义 '+(config.chunk_size||800)+' 字/片、重叠 '+Math.round((config.overlap_ratio??0.1)*100)+'%';
+    if(config.strategy==='auto')return '自动 '+(config.chunk_size||800)+' 字/片、重叠 '+Math.round((config.overlap_ratio??0.1)*100)+'%';
+    if(config.strategy==='hierarchy')return '按标题分章（章节内 800 字/片、80 字重叠）';
+    return '自动（800 字/片、80 字重叠）';
+  }
+  function renderStatus(d){
+    const parts=['索引状态：'+d.status,'当前生效：'+(d.active_generation?describe(d.active_strategy):'尚无就绪代次')];
+    if(d.pending)parts.push((d.pending.status==='running'?'正在执行':'等待执行')+'：'+describe(d.pending.strategy)+'（任务 '+d.pending.job_id+'）');
+    if(d.worker_stalled)parts.push('超过等待时限仍无进展，索引 Worker 可能未运行；请启动 python -m campusclaw.index_worker');
+    if(!d.embedding_ready&&d.status==='ready')parts.push('当前仅完成关键词索引');
+    if(d.last_error)parts.push('错误：'+d.last_error);
+    status.textContent=parts.join(' · ');
+  }
+  async function refresh(){ clearTimeout(poll); try{const r=await fetch('/api/materials/'+id+'/index-status',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error?d.error.message:'状态暂不可用');renderStatus(d);if(d.status==='pending'||d.status==='running') poll=setTimeout(refresh,4000);}catch(e){status.textContent=e.message||'状态暂不可用';}}
+  strategyInput.addEventListener('change',toggleParameters);
+  toggleParameters();
   refresh();
   row.querySelector('[data-role=reindex]').addEventListener('click',async function(){
-    const strategy=row.querySelector('[data-role=strategy]').value;
+    const strategy=strategyInput.value;
     const body={strategy};
-    if(strategy==='custom'){body.chunk_size=Number(row.querySelector('[data-role=size]').value);body.overlap_ratio=Number(row.querySelector('[data-role=overlap]').value);body.separator=row.querySelector('[data-role=separator]').value;}
-    try{await postJson('/api/materials/'+id+'/reindex',body,true);await refresh();}catch(e){status.textContent=e.message;}
+    if(strategy==='auto'||strategy==='custom'){body.chunk_size=Number(sizeInput.value);body.overlap_ratio=Number(overlapInput.value);}
+    if(strategy==='custom')body.separator=separatorInput.value;
+    try{const result=await postJson('/api/materials/'+id+'/reindex',body,true);await refresh();if(result.updated_existing)status.textContent='已更新等待执行参数。'+status.textContent;}catch(e){status.textContent=e.message;}
   });
 });
 </script>

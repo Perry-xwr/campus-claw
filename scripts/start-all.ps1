@@ -5,12 +5,13 @@
 
 .DESCRIPTION
   【本机模式（默认）】直接跑 Python 进程，改代码即生效：
-  - 解释器优先级：-Python 参数 > 项目 .venv（uv sync 产物）> anaconda langdev；
+  - 解释器优先级：-Python 参数 > 项目 .venv（uv sync 产物）；缺失时明确失败，不猜本机路径；
   - 读取项目根目录 .env（只补齐缺失项，不覆盖当前进程已有的环境变量）；
   - 先停掉上一次由本脚本启动的进程（幂等，重复执行不会起多份）；
   - 端口被本项目的 Compose 容器占用时自动停掉该容器（例如旧的 campusclaw-app），
     避免健康检查打到旧镜像；其他进程占用则报错并提示换端口；
   - Qdrant 用 docker compose 起（Docker 未运行 / 加 -NoDocker 时跳过，向量检索不可用）；
+  - 本机索引 Worker 总会启动；未配置 Embedding 时持续执行关键词/FTS 索引；
   - MCP 工具服务需要 MCP_AUTH_TOKEN，脚本从 .env 读入再传给子进程；
   - 每个服务的输出写到 .run/logs/<服务>.log，PID 记在 .run/pids.json；
   - 启动后做健康检查（同时确认进程还活着），并打印访问地址与停止命令。
@@ -25,13 +26,13 @@
   pwsh -File scripts/start-all.ps1
 
 .EXAMPLE
-  pwsh -File scripts/start-all.ps1 -NoDocker      # 不启动 Qdrant / worker，只用关键词检索
+  pwsh -File scripts/start-all.ps1 -NoDocker -NoMcp # 不启动 Qdrant / MCP，保留 Flask + 关键词索引 Worker
 
 .EXAMPLE
   pwsh -File scripts/start-all.ps1 -AppPort 8099 -McpPort 8091
 
 .EXAMPLE
-  pwsh -File scripts/start-all.ps1 -Python "D:\conda\envs\langdev\python.exe"
+  pwsh -File scripts/start-all.ps1 -Python "D:\path\to\python.exe"
 
 .EXAMPLE
   pwsh -File scripts/start-all.ps1 -Docker              # 容器模式（用现有镜像）
@@ -46,6 +47,8 @@ param(
     [int]$AppPort = 0,
     [int]$McpPort = 0,
     [switch]$NoDocker,
+    # 本机只运行 Flask 与索引 Worker 时可跳过独立 MCP 服务。
+    [switch]$NoMcp,
     # 整站用 Docker Compose 启动（与 -NoDocker 互斥）。
     [switch]$Docker,
     # 配合 -Docker：启动前先 docker compose build。
@@ -65,10 +68,9 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $PidFile = Join-Path $RunDir "pids.json"
 
 # ---------------------------------------------------------------- 解释器探测
-# 顺序：显式 -Python 参数 > 项目 .venv（uv sync 产物）> anaconda langdev。
-# .venv 存在时说明本项目用 uv 管理依赖，此时不应再落到 conda 环境（两处依赖会漂移）。
+# 顺序：显式 -Python 参数 > 项目 .venv（uv sync 产物）。
+# 不回退到机器专属的 Conda/Anaconda 路径，避免误用不同依赖环境。
 # 容器模式（-Docker）不跑本机进程，无需探测解释器。
-$LangdevFallback = "E:\codetools\anaconda3\envs\langdev\python.exe"
 if (-not $Docker) {
     if ([string]::IsNullOrWhiteSpace($Python)) {
         $venvPython = Join-Path $Root ".venv\Scripts\python.exe"
@@ -76,15 +78,21 @@ if (-not $Docker) {
             $Python = $venvPython
             Write-Host "[环境] 使用项目 .venv（uv）：$Python" -ForegroundColor DarkGray
         } else {
-            $Python = $LangdevFallback
-            Write-Host "[环境] 未找到 .venv，回落到 anaconda langdev：$Python" -ForegroundColor DarkGray
-            Write-Host "       想改用 uv 管理：uv sync（详见 README「环境与依赖：用 uv 管理」）。" -ForegroundColor DarkGray
+            Write-Host "[错误] 未找到项目 .venv；请先恢复锁定环境，或用 -Python 显式指定 Python 3.11。" -ForegroundColor Red
+            Write-Host "       启动脚本不会自动运行 uv sync 或重建虚拟环境。" -ForegroundColor DarkGray
+            exit 2
         }
     }
 
     if (-not (Test-Path $Python)) {
         Write-Host "[错误] 找不到 Python：$Python" -ForegroundColor Red
         Write-Host "       用 -Python <路径> 指定解释器，或先执行 uv sync 生成 .venv。" -ForegroundColor DarkGray
+        exit 2
+    }
+    $pythonVersionOutput = (& $Python --version 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $pythonVersionOutput -notmatch '^Python 3\.11(?:\.|$)') {
+        Write-Host "[错误] 项目要求 Python 3.11，当前解释器报告：$pythonVersionOutput" -ForegroundColor Red
+        Write-Host "       脚本不会安装 Python、运行 uv sync 或重建 .venv。" -ForegroundColor DarkGray
         exit 2
     }
 }
@@ -150,7 +158,7 @@ function Clear-Port {
     if ($owners.Count -eq 0) { return $true }
 
     # 先看是不是本项目 Compose 里的容器占着（旧 campusclaw-app 会随 Docker 自动重启）
-    if (Test-Docker) {
+    if (-not $NoDocker -and (Test-Docker)) {
         $rows = docker compose ps --format "{{.Service}}|{{.Name}}|{{.Ports}}" 2>&1
         if ($LASTEXITCODE -eq 0) {
             foreach ($row in $rows) {
@@ -322,7 +330,8 @@ $failed = $false
 
 # 本机模式与容器模式抢同一组端口：先把容器模式的 app / worker / mcp 停掉，
 # Qdrant 继续复用（本机模式本来就依赖它）。想整站都用容器请改用 -Docker。
-if (Test-Docker) {
+# -NoDocker 是纯本机关键词模式，不查询或操作任何 Docker 容器。
+if (-not $NoDocker -and (Test-Docker)) {
     $composeRunning = @(docker compose ps --services --filter "status=running" 2>$null)
     $composeOk = ($LASTEXITCODE -eq 0)
     $conflicts = @($composeRunning | Where-Object { $_ -and $_.Trim() -ne "" -and $_.Trim() -ne "qdrant" } |
@@ -364,29 +373,24 @@ if ($NoDocker) {
             $pids["qdrant"] = "compose"
             Write-Host "  ├─ qdrant 已就绪" -ForegroundColor DarkGray
         } else {
-            Write-Host "[警告] Qdrant 未就绪：镜像拉取失败或端口被占用；本轮跳过索引 worker。" -ForegroundColor Yellow
+            Write-Host "[警告] Qdrant 未就绪：镜像拉取失败或端口被占用；向量检索不可用。" -ForegroundColor Yellow
         }
     }
 }
 
-# ---------------------------------------------------------------- 3. 索引 worker
-if ($qdrantReady) {
-    Write-Host "启动索引 worker……" -ForegroundColor Cyan
-    $worker = Start-ServiceProcess -Name "worker" -Arguments "-m campusclaw.index_worker" -WorkingDirectory $Root
-    $pids["worker"] = $worker.Id
-} else {
-    Write-Host "[跳过] 索引 worker（没有可用的 Qdrant）" -ForegroundColor Yellow
-}
-
 # ---------------------------------------------------------------- 4. MCP 工具服务
-Write-Host "启动 MCP 工具服务……" -ForegroundColor Cyan
 $mcpOk = $false
 $mcp = $null
-if (Clear-Port -Port $McpPort -PortParam "McpPort") {
-    $mcp = Start-ServiceProcess -Name "mcp" -Arguments "-m mcp_server" -WorkingDirectory (Join-Path $Root "mcp-server")
-    $pids["mcp"] = $mcp.Id
+if ($NoMcp) {
+    Write-Host "[跳过] MCP 工具服务（-NoMcp）。" -ForegroundColor Yellow
 } else {
-    $failed = $true
+    Write-Host "启动 MCP 工具服务……" -ForegroundColor Cyan
+    if (Clear-Port -Port $McpPort -PortParam "McpPort") {
+        $mcp = Start-ServiceProcess -Name "mcp" -Arguments "-m mcp_server" -WorkingDirectory (Join-Path $Root "mcp-server")
+        $pids["mcp"] = $mcp.Id
+    } else {
+        $failed = $true
+    }
 }
 
 # ---------------------------------------------------------------- 5. 主应用
@@ -422,6 +426,20 @@ if ($appProc) {
         Show-LogTail "app"
     }
 }
+
+# Worker 的 schema 初始化依赖 app 的启动流程。只在 /health 确认应用完成初始化后启动，
+# 避免全新数据目录中先启动 Worker 时因 knowledge_entries 等表尚不存在而退出。
+if ($appProc -and -not $failed) {
+    Write-Host "启动索引 worker……" -ForegroundColor Cyan
+    $worker = Start-ServiceProcess -Name "worker" -Arguments "-m campusclaw.index_worker" -WorkingDirectory $Root
+    $pids["worker"] = $worker.Id
+    if (-not $qdrantReady) {
+        Write-Host "[信息] Qdrant 不可用；未配置 Embedding 时 Worker 将执行关键词索引。" -ForegroundColor Yellow
+    }
+}
+
+$pids | ConvertTo-Json | Set-Content -Path $PidFile -Encoding UTF8
+
 if ($mcp) {
     $mcpOk = Wait-Service -Url "http://127.0.0.1:$McpPort/health" -Seconds 20 -Name "MCP 工具服务" -ProcessId $mcp.Id
     if (-not $mcpOk) {
@@ -440,6 +458,7 @@ if (-not $failed) {
         "  向量检索    未启用（关键词检索与解题助手照常可用）"
     }
     $qdrantLine = if ($qdrantReady) { "  Qdrant      $qdrantUrl/dashboard" } else { "" }
+    $mcpLine = if ($mcp) { "  MCP 健康    http://127.0.0.1:$McpPort/health" } else { "  MCP 服务    未启动（-NoMcp）" }
     Write-Host @"
 全部就绪
   登录页      http://127.0.0.1:$AppPort/login
@@ -447,9 +466,9 @@ if (-not $failed) {
   班级 FAQ    http://127.0.0.1:$AppPort/qa/faq
   答疑统计    http://127.0.0.1:$AppPort/qa/stats（仅教师）
   解题助手    http://127.0.0.1:$AppPort/tutor
-  MCP 管理    http://127.0.0.1:$AppPort/mcp
+  MCP 管理    http://127.0.0.1:$AppPort/mcp（独立服务未启动时不可用）
   Swagger     http://127.0.0.1:$AppPort/swagger/index.html
-  MCP 健康    http://127.0.0.1:$McpPort/health
+$mcpLine
 $qdrantLine
 $vectorLine
 

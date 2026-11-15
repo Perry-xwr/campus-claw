@@ -13,7 +13,7 @@
 | 模块 | 能做什么 |
 | --- | --- |
 | **材料管理** | 教师上传 `.txt` / `.md`（UTF-8，单文件 ≤ 10 MiB）、改标题、删除；学生只读本班材料，可预览、下载 |
-| **知识库检索** | 三种切分策略（`auto` 定长 800/80、`hierarchy` 按 Markdown 标题、`custom` 自定义），三种检索模式（`keyword` / `vector` / `hybrid`）；结果带材料标题、切片序号、字符区间、摘录与下载链接 |
+| **知识库检索** | 三种切分策略（`auto` 默认 800/80 且允许调整、`hierarchy` 按 Markdown 标题、`custom` 自定义），三种检索模式（`keyword` / `vector` / `hybrid`）；结果带材料标题、切片序号、字符区间、摘录与下载链接 |
 | **解题助手** | 会话式提问，SSE 流式输出；「引导」只给思路、「直接回答」给结论；教师可维护班级提示词与「解题引导」技能；引用挂回材料；会话可删 |
 | **班级答疑广场** | 公开问答闭环：提问 → 回复 → 采纳 → 关闭；AI 辅助回答（不推进状态、不计回复数）；优质问答沉淀为 FAQ 并**自动汇总成一份材料进知识库**；教师端统计面板 |
 | **MCP 工具接入** | 教师登记 MCP 服务器、连接并发现工具；技能可绑定「工具名@服务器名」；提问时按白名单确定性调用，工具返回经安全清洗后作为数据注入；每次调用留审计 |
@@ -85,12 +85,12 @@ docker compose ps           # 等 STATUS 变成 healthy
 ### 方式四：一键启动脚本（Windows）
 
 ```powershell
-pwsh -File scripts\start-all.ps1          # 或双击根目录的 start-all.cmd
-pwsh -File scripts\stop-all.ps1           # 停止全部
-pwsh -File scripts\start-all.ps1 -NoDocker   # 不起 Qdrant 与 worker，只用关键词检索
+pwsh -NoProfile -File scripts\start-all.ps1 -NoDocker -NoMcp # Flask + 关键词索引 Worker
+pwsh -NoProfile -File scripts\start-all.ps1                   # 全部本机服务；Qdrant 仅在 Docker 可用时启动
+pwsh -NoProfile -File scripts\stop-all.ps1                    # 停止脚本启动的服务
 ```
 
-脚本按 **Qdrant → 索引 worker → MCP 服务(8090) → 应用(8080)** 顺序拉起，自动读取根目录 `.env`，日志写到 `.run/logs/`，PID 记在 `.run/pids.json`。解释器优先级：`-Python <路径>` > 项目 `.venv` > 本机 conda 环境。端口冲突、Docker 未启动、缺 `MCP_AUTH_TOKEN` 都会给出提示而不是静默失败。
+脚本优先使用项目 `.venv\Scripts\python.exe`，不会执行 `uv sync` 或重建环境。`-NoDocker` 跳过 Qdrant，但索引 Worker 仍会启动；Embedding 未配置时它以关键词/FTS 模式持续处理上传与重建任务。`-NoMcp` 适合只运行 Flask 与知识库 Worker 的本机环境。脚本自动读取根目录 `.env`，日志写到 `.run/logs/`，PID 记在 `.run/pids.json`。端口冲突、Docker 未启动、缺 `MCP_AUTH_TOKEN` 都会给出提示而不是静默失败。
 
 ---
 
@@ -147,7 +147,7 @@ EMBEDDING_API_KEY=sk-...
 ### 教师：把材料变成可检索的知识库
 
 1. `/materials` 上传 `.txt` 或 `.md`。上传成功（201）只代表文件入库，**索引是否就绪是另一个状态**，看 `/api/materials/{id}/index-status` 的 `ready`。
-2. 索引由后台 worker 完成。切分策略可选：`auto`（定长 800 字、重叠 80）、`hierarchy`（按 `#` 标题切）、`custom`（自定义块大小、重叠比例、分隔符）。
+2. 索引由后台 worker 完成。切分策略可选：`auto`（默认 800 字、重叠 80，也可调整长度与重叠比例）、`hierarchy`（按 `#` 标题切，章节内默认 800/80）、`custom`（自定义块大小、重叠比例、分隔符）。
 3. 重建索引用 `POST /api/materials/{id}/reindex`，例如 `{"strategy":"hierarchy"}`。重建会写新代次，旧代次由 worker 清理，检索只命中生效代次。
 4. `/knowledge` 页可以直接试检索，三种模式对比效果。
 
