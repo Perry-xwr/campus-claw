@@ -1,9 +1,9 @@
-"""门禁总入口：一条命令跑完六项检查，任一项非 0 即整体非 0。
+"""门禁总入口：一条命令跑完七项检查，任一项非 0 即整体非 0。
 
 存在的理由有两个：
 
 1. **`make check` 只是一层壳**。它依赖 GNU make，而 Windows 默认没有；
-   真正跑的是六个 Python 脚本。把「跑哪些、按什么顺序、传什么参数」
+   真正跑的是七个 Python 脚本。把「跑哪些、按什么顺序、传什么参数」
    收在这一处，Makefile 与 CI 都指向它，就不会出现「三套清单各说各话」
    ——DEF-07（`make check-compose` 被写成字面量 `/n/t`）正是清单漂移的产物。
 
@@ -13,7 +13,7 @@
    最省事的分支堵掉。
 
 用法：
-    python scripts/check_all.py                  # 六项全跑
+    python scripts/check_all.py                  # 七项全跑
     python scripts/check_all.py --list           # 只列步骤，不执行
     python scripts/check_all.py --only audit,observe
     python scripts/check_all.py --no-init-db     # 明确要求不建库（调试用）
@@ -51,6 +51,8 @@ STEPS: list[tuple[str, str, list[str]]] = [
       str(ROOT / "reports" / "audit-recheck.md"), "--allow-empty"]),
     ("observe", "第 10 课运行观测判定",
      ["scripts/check_observe.py", "--db", str(DB), "--out", str(EVIDENCE / "observe.json")]),
+    ("alert-notify", "外部告警通知隔离回归",
+     ["scripts/test_alert_notify.py"]),
     ("compose", "容器配置静态校验",
      ["scripts/check_compose.py", "--out", str(EVIDENCE / "compose-static.json")]),
 ]

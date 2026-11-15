@@ -149,3 +149,9 @@ python scripts/skill_demo.py --base http://127.0.0.1:8110 \
 仍然缺两样，都不打算用文字补：**公网部署域名**与**告警外发通知**。
 前者要一台对外可达的机器与域名，后者要一个可用的通知渠道（邮件/IM/webhook）；
 两者都属于外部条件，接入方式写在上面「关于通知」一段里。
+
+## 后续交接：外部通知实现（2026-11-15）
+
+新增 `scripts/alert_notify.sh` 与 `scripts/alert_notify.py`，轮询既有 `/api/health/alerts`，不改动前述 5 条规则或阈值。Webhook 由 `CAMPUSCLAW_ALERT_WEBHOOK_URL` 提供；本地状态只记录已成功通知的 critical 规则 ID，重复集合去重，恢复时发送一次恢复事件。通知正文使用固定摘要，不包含动态告警文本或用户数据。隔离 SQLite + Mock Webhook 回归入口为 `python scripts/test_alert_notify.py`。
+
+本节前文记录的是当时没有外发通道的验收状态；本地实现与 Mock 测试不等于已配置真实 Webhook 或完成线上送达验收。定时调用配置见[实现说明](../docs/IMPLEMENTATION.md#外部告警通知可选)。

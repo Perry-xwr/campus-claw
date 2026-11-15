@@ -1,4 +1,4 @@
-# CampusClaw 一键检查入口（第 8–10 课）
+# CampusClaw 一键检查入口（第 8–10 课与告警通知回归）
 # 用法：make check / make check-security / check-async / check-apitest / check-audit …
 #
 # `make` 只是一层壳：真正的步骤清单在 scripts/check_all.py（顺序、参数、退出码）。
@@ -10,7 +10,7 @@
 PYTHON ?= python
 GATE := $(PYTHON) scripts/check_all.py
 
-.PHONY: help check check-security check-async check-apitest check-audit check-observe check-compose check-bench
+.PHONY: help check check-security check-async check-apitest check-audit check-observe check-alert-notify check-compose check-bench
 
 help:
 	@echo make check-security  SEC-05 密钥扫描 + SEC-06 依赖基线
@@ -18,9 +18,10 @@ help:
 	@echo make check-apitest   第 9 课注入三件套（SQL / XSS / CSRF 反例）
 	@echo make check-audit     SEC-07 审计日志七列回查（结构断言 + 数据断言）
 	@echo make check-observe   第 10 课运行观测告警判定（critical 即红）
+	@echo make check-alert-notify 外部告警通知隔离回归（SQLite + Mock Webhook）
 	@echo make check-compose   容器配置静态校验（不需要 Docker）
 	@echo make check-bench     第 10 课压测基线（需先启动实例）
-	@echo make check           六项一起跑（= python scripts/check_all.py，红即退出码非 0）
+	@echo make check           七项一起跑（= python scripts/check_all.py，红即退出码非 0）
 
 check-security:
 	$(GATE) --only security
@@ -36,6 +37,9 @@ check-audit:
 
 check-observe:
 	$(GATE) --only observe
+
+check-alert-notify:
+	$(GATE) --only alert-notify
 
 check-compose:
 	$(GATE) --only compose
