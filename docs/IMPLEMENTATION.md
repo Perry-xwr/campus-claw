@@ -71,6 +71,16 @@ docker compose up --build -d
 docker compose ps           # 等 STATUS 变成 healthy
 ```
 
+以上命令在本机从源码构建。服务器部署已发布的 GHCR 镜像时，先配置 `.env`（至少提供安全的密钥与 `MCP_AUTH_TOKEN`），再执行：
+
+```bash
+docker compose pull
+docker compose up -d --no-build
+docker compose ps
+```
+
+默认镜像为 `ghcr.io/perry-xwr/campus-claw:main`。要固定或回滚版本，可设置 `CAMPUSCLAW_IMAGE=ghcr.io/perry-xwr/campus-claw:sha-<完整提交 SHA>` 后再 pull/up。GHCR 包权限由仓库的 Actions `GITHUB_TOKEN` 发布；私有包的部署主机需先登录 GHCR。发布工作流等待 main 的 `check` 工作流成功后，再按该次 CI 对应的提交 SHA 构建和推送，并验证 OCI revision 标签、digest 与隔离容器 `/health`。
+
 四个容器：
 
 | 服务 | 端口 | 作用 |
