@@ -8,15 +8,20 @@ import datetime as dt
 import http.server
 import json
 import socket
+import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from werkzeug.serving import make_server
 
-from alert_notify import NotifyError, run_once, send_webhook
+from scripts.alert_notify import NotifyError, run_once, send_webhook
 from campusclaw import create_app, db as dbmod
 from unittest.mock import patch
 
@@ -157,7 +162,7 @@ class AlertNotifyTests(unittest.TestCase):
         self.assertFalse(self.state_path.exists())
 
     def test_webhook_timeout_is_reported_without_exposing_url(self) -> None:
-        with patch("alert_notify._open", side_effect=socket.timeout()):
+        with patch("scripts.alert_notify._open", side_effect=socket.timeout()):
             with self.assertRaisesRegex(NotifyError, "webhook delivery timed out") as caught:
                 send_webhook(self.webhook_url, {"event": "critical"}, 2)
         self.assertNotIn("mock-only", str(caught.exception))
