@@ -315,7 +315,10 @@ def backfill_keyword_ready(
     """
     rows = conn.execute("""
         SELECT m.id, m.class_id, k.id AS entry_id, k.body_text,
-               mi.strategy_json AS active_strategy_json
+               mi.strategy_json AS active_strategy_json,
+               (SELECT j.strategy_json FROM index_jobs j
+                WHERE j.material_id=m.id AND j.status='queued' AND j.attempts=0
+                ORDER BY j.id DESC LIMIT 1) AS queued_strategy_json
         FROM materials m
         JOIN knowledge_entries k ON k.material_id = m.id
         LEFT JOIN material_index mi ON mi.material_id = m.id
@@ -330,7 +333,8 @@ def backfill_keyword_ready(
           AND NOT EXISTS (
               SELECT 1 FROM index_jobs j
               WHERE j.material_id = m.id
-                AND j.status IN ('queued', 'running'))
+                AND (j.status = 'running'
+                     OR (j.status = 'queued' AND j.attempts > 0)))
     """).fetchall()
     count = 0
     for row in rows:
@@ -339,7 +343,11 @@ def backfill_keyword_ready(
             override = (strategy_overrides or {}).get(int(row["id"]))
             if override is None:
                 try:
-                    override = json.loads(row["active_strategy_json"] or "null")
+                    override = json.loads(
+                        row["queued_strategy_json"]
+                        or row["active_strategy_json"]
+                        or "null"
+                    )
                 except json.JSONDecodeError:
                     override = None
             if _write_keyword_chunks(
