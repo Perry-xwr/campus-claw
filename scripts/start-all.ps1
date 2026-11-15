@@ -378,15 +378,6 @@ if ($NoDocker) {
     }
 }
 
-# ---------------------------------------------------------------- 3. 索引 worker
-# 无 Embedding 配置时 Worker 会跳过 Qdrant，持续消费队列并建立关键词/FTS 切片。
-Write-Host "启动索引 worker……" -ForegroundColor Cyan
-$worker = Start-ServiceProcess -Name "worker" -Arguments "-m campusclaw.index_worker" -WorkingDirectory $Root
-$pids["worker"] = $worker.Id
-if (-not $qdrantReady) {
-    Write-Host "[信息] Qdrant 不可用；未配置 Embedding 时 Worker 将执行关键词索引。" -ForegroundColor Yellow
-}
-
 # ---------------------------------------------------------------- 4. MCP 工具服务
 $mcpOk = $false
 $mcp = $null
@@ -435,6 +426,20 @@ if ($appProc) {
         Show-LogTail "app"
     }
 }
+
+# Worker 的 schema 初始化依赖 app 的启动流程。只在 /health 确认应用完成初始化后启动，
+# 避免全新数据目录中先启动 Worker 时因 knowledge_entries 等表尚不存在而退出。
+if ($appProc -and -not $failed) {
+    Write-Host "启动索引 worker……" -ForegroundColor Cyan
+    $worker = Start-ServiceProcess -Name "worker" -Arguments "-m campusclaw.index_worker" -WorkingDirectory $Root
+    $pids["worker"] = $worker.Id
+    if (-not $qdrantReady) {
+        Write-Host "[信息] Qdrant 不可用；未配置 Embedding 时 Worker 将执行关键词索引。" -ForegroundColor Yellow
+    }
+}
+
+$pids | ConvertTo-Json | Set-Content -Path $PidFile -Encoding UTF8
+
 if ($mcp) {
     $mcpOk = Wait-Service -Url "http://127.0.0.1:$McpPort/health" -Seconds 20 -Name "MCP 工具服务" -ProcessId $mcp.Id
     if (-not $mcpOk) {
