@@ -7,6 +7,8 @@
 > **先说结论：流程执行 ✅、测试通过 ✅、产出镜像 ✅、编号反查提交 ✅。**
 > 镜像带 `org.opencontainers.image.revision` 标签，标签值就是提交 SHA，
 > 离开仓库后仍能回答「这是哪次提交做的」。第四、五节是实测记录。
+>
+> 本报告保留早期本地构建与首次 GHCR 发布前的历史记录。**截至 2026-11-15 的最新 GHCR 发布和 main 保护状态见第八节**；早期状态不代表当前状态。
 
 ## 一、流水线做了什么
 
@@ -164,14 +166,31 @@ run #12 的红**不是坏提交，是门禁口径在 CI 上没跟上**：DEF-10 
 
 这一对红绿说明的是同一件事的两面：**红灯能定位到具体步骤和退出码，绿灯才有意义**。
 
-## 七、GHCR 发布自动化（T4，待首次发布）
+## 七、GHCR 发布自动化（T4，首次发布前的历史快照）
 
-2026-11-15 新增 `.github/workflows/publish-ghcr.yml`，main 的 `check` 门禁成功后会使用仓库
+以下是 2026-11-15 新增 `.github/workflows/publish-ghcr.yml` 后、工作流尚未合入 main 并触发首次发布时的状态记录，予以保留。main 的 `check` 门禁成功后会使用仓库
 `GITHUB_TOKEN` 发布到 `ghcr.io/perry-xwr/campus-claw`。工作流权限限定为 `contents: read`
 与 job 级 `packages: write`，不增加仓库密钥。镜像标签包含 `main` 和完整提交 SHA；
 OCI revision 标签记录完整 Git SHA。
 
 发布 job 会按 digest 拉取刚发布的镜像，核对 digest 与 revision，并在没有宿主机数据挂载的
-临时容器中检查 `/health`。此分支尚未合并，main/tag 发布触发器尚未运行，因此目前没有已发布的
-GHCR digest，也不把该流程记作已发布验收。首次成功运行后，应将 Actions run 链接、完整 SHA、
-digest 和健康检查结果补入本节。
+临时容器中检查 `/health`。**在这份早期快照记录时**，该分支尚未合入 main，main/tag 发布触发器尚未运行，因此当时没有已发布的
+GHCR digest，也不把该流程记作已发布验收。当时待补的 Actions run、完整 SHA、digest 和健康
+检查结果现记录于第八节。此段只反映首次发布前快照；最终发布证据见下节。
+
+## 八、最终 GHCR 发布与 main 保护（2026-11-15）
+
+**当前状态：T4 GHCR 发布已通过，T5 main 分支保护已启用。** 最新 main 为
+`1713a89fd74722873c7fc1519e4969b0097578c6`（PR #9 合并提交）。该提交的 [main CI run 43673557317](https://github.com/Perry-xwr/campus-claw/actions/runs/43673557317)
+结论为 success；随后 [GHCR 发布 run 43674084946](https://github.com/Perry-xwr/campus-claw/actions/runs/43674084946)
+成功构建、推送并按 digest 拉取镜像，核对 revision 与提交 SHA 一致，隔离容器 `/health` 检查通过。
+
+| 项目 | 最终验收值 |
+| --- | --- |
+| 镜像 | `ghcr.io/perry-xwr/campus-claw` |
+| 标签 | `main`、`sha-1713a89fd74722873c7fc1519e4969b0097578c6` |
+| revision | `1713a89fd74722873c7fc1519e4969b0097578c6` |
+| Digest | `sha256:3627f86aa67691652abb0c06ec694e85c03fefe8c15f7bffa7b85abfa3711130` |
+| 镜像验收 | 按 digest 拉取成功；revision 匹配；隔离容器 `/health` 成功 |
+
+GitHub 的 [main-protection 规则集](https://github.com/Perry-xwr/campus-claw/rules/27289599) 当前为 active，目标是默认分支，要求通过 Pull Request 和状态检查 `门禁（安全 / 异步 / 注入 / 审计 / 观测 / 容器）`，并阻止删除及非快进更新。规则当前设置的必需审批数为 **0**；它保护 PR/CI 流程，但不强制人工批准。若课程或团队要求至少一人审查，应由仓库管理员调整规则集。

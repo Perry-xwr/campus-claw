@@ -98,6 +98,7 @@ make check                         # 需 GNU make，等价
 - **产品与需求**：[项目需求](docs/requirements/project-requirements.md)、[功能规格](docs/requirements/functional-spec.md)、[角色与流程](docs/requirements/roles-and-workflows.md)、[14 项需求与 37 个场景](docs/requirements/acceptance-scenarios.md)、[集成要求](docs/requirements/integration-requirements.md)
 - **质量与安全**：[测试规范](docs/standards/testing.md)、[安全规范](docs/standards/security.md)、[AI 规范](docs/standards/ai.md)、[产品规范](docs/standards/product.md)、[运维规范](docs/standards/operations.md)、[仓库协作规则](AGENTS.md)
 - **验收与测试**：
+  - 最终交接：[CampusClaw 最终验收与交接报告（2026-11-15）](reports/final-handoff-2026-11-15.md)
   - 最终报告：[根目录 report.md](report.md)（结论与指向）；过程记录：[验收与测试流程报告（第 9–10 课）](reports/验收与测试流程报告-2026-11-12.md)、[验收测试报告（2026-11-10，基线 475eb45）](reports/verification/验收测试报告-2026-11-10.md)
   - 第 10 课规定证据：[门禁红绿](reports/gate-red-green.md)、[换目录启动复现](reports/boot-reproduce.md)、[流水线记录](reports/pipeline.md)、[观测面板与告警](reports/observe-alert.md)、[压测前后对比](reports/bench.md)、[真实用户反馈](reports/feedback.md)
   - 轻量端与跨源：[轻量端（H5）与跨源声明](reports/h5-lightweight.md)
