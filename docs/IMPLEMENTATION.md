@@ -223,6 +223,8 @@ EMBEDDING_API_KEY=sk-...
 | Swagger 试调 | `/swagger/index.html`、`/openapi.json` | 登录后 |
 | 健康检查 | `/health` | 免登录 |
 
+轻量端 `/m` 提供手机端登录、本班材料列表、课程验收用的异步任务状态及跨班材料访问检查；当前不提供知识库问答会话。相关流程证据见[轻量端走查报告](../reports/h5-lightweight.md)。
+
 接口分四组，全部按班级边界过滤，跨班与不存在统一返回 404：
 
 - `/api/materials/*`、`/api/search`、`/api/ask` —— 材料与检索；
@@ -279,9 +281,11 @@ uv run python scripts/selfcheck.py
 
 不改动项目数据：在临时目录起一个服务，依次登录四个账号，核对健康检查、登录跳转、材料数与班级隔离，跑完自动清理，退出码 0 表示环境可用。换机器、换 Python 版本、升级依赖之后先跑它。
 
-### 异步批改
+### 异步任务处理（课程验收组件）
 
-`POST /api/submissions` 接收作业并返回 `202` 与任务 ID；通过 `GET /api/tasks/{task_id}` 查询状态。独立消费者可常驻运行，或使用 `--once` 执行当前可领取队列：
+> 本节记录课程验收使用的后台队列机制和接口，不属于 CampusClaw 核心业务功能介绍。当前消费者使用确定性本地规则，不是大语言模型评分系统；队列、状态查询和幂等处理用于异步任务工程验收，不应宣传为完整的智能批改产品。
+
+`POST /api/submissions` 接收任务并返回 `202` 与任务 ID；通过 `GET /api/tasks/{task_id}` 查询状态。独立消费者可常驻运行，或使用 `--once` 执行当前可领取队列：
 
 ```bash
 uv run python -m campusclaw.task_worker
